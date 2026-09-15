@@ -1,0 +1,900 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Royal SpecBoard｜設計師規格工作臺</title>
+<style>
+  :root{
+    --bg:#1b1e23; --panel:#23272d; --panel2:#2b3038; --line:#3a404a;
+    --ink:#e7eaee; --ink2:#9aa2ad; --acc:#4cc3d9;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;padding:0}
+  body{background:var(--bg);color:var(--ink);font-family:"Noto Sans TC","PingFang TC",system-ui,sans-serif;padding:0}
+  /* 單屏工作台（2026-09-15，Roy 用規格台畫的規格台）：
+     header 頂｜畫布主體｜規格文字底條，右側工具欄全高。畫布常駐，不再長捲動。 */
+  .app{height:100vh;display:grid;overflow:hidden;background:var(--panel);
+    grid-template:"hd hd" auto "bar insp" auto "stage insp" 1fr "spec insp" auto / 1fr var(--inspw,380px)}
+  @media (max-width:860px){.app{height:auto;grid-template:"hd" auto "bar" auto "stage" auto "insp" auto "spec" auto / 1fr}}
+  header{grid-area:hd;padding:10px 16px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  h1{margin:0;font-size:16px;font-weight:650}
+  header em{font-style:normal;font-size:12px;color:var(--ink2)}
+
+  .bar{grid-area:bar;padding:8px 14px;border-bottom:1px solid var(--line);display:flex;gap:7px;flex-wrap:wrap;align-items:center}
+  .stage{grid-area:stage;background:#141619;position:relative;display:flex;align-items:center;justify-content:center;padding:14px;min-height:0}
+  canvas{display:block;touch-action:none;max-width:100%}
+  .zoom{position:absolute;right:10px;bottom:8px;font-size:11px;color:var(--ink2);font-variant-numeric:tabular-nums}
+
+  .specbar{grid-area:spec;border-top:1px solid var(--line)}
+  .specbar textarea{min-height:96px;max-height:180px}
+
+  .sec{padding:11px 14px;border-bottom:1px solid var(--line)}
+  .sec:last-child{border-bottom:0}
+  .lbl{font-size:10px;color:var(--ink2);letter-spacing:.09em;margin-bottom:7px}
+  .insp{grid-area:insp;border-left:1px solid var(--line);background:var(--panel2);overflow-y:auto;min-height:0}
+  @media (max-width:860px){.insp{border-left:0;border-top:1px solid var(--line)}}
+
+  button,select,input{font:inherit}
+  .b{border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:12.5px;padding:6px 10px;border-radius:3px;cursor:pointer}
+  .b:hover{background:#343a44}
+  .b[aria-pressed="true"]{background:var(--ink);color:#1b1e23;border-color:var(--ink);font-weight:600}
+  .b:disabled{opacity:.35;cursor:default}
+  .b.sm{padding:5px 8px;font-size:11.5px}
+  /* 元件鈕緊湊（寬度夠時自然一行；nowrap 會在窄視窗生橫捲軸，撤） */
+  #palette .b{padding:5px 7px;font-size:11.5px;white-space:nowrap}
+  /* 右欄寬可拖拉（Roy：「乾脆工具列的寬度可以自己拉」）——左緣 6px 把手 */
+  .insp{position:relative}
+  #inspGrip{position:absolute;left:0;top:0;bottom:0;width:6px;cursor:ew-resize;z-index:6}
+  #inspGrip:hover,#inspGrip.on{background:rgba(76,195,217,.35)}
+
+  .f{display:grid;grid-template-columns:repeat(2,1fr);gap:6px}
+  .fld{display:flex;align-items:center;border:1px solid var(--line);background:#1e2228;border-radius:3px;overflow:hidden}
+  .fld i{font-style:normal;padding:0 7px;font-size:10.5px;color:var(--ink2);border-right:1px solid var(--line);align-self:stretch;display:flex;align-items:center;cursor:ew-resize;user-select:none}
+  .fld input{border:0;outline:0;background:transparent;color:var(--ink);padding:6px 7px;width:100%;min-width:0;font-size:12.5px;font-variant-numeric:tabular-nums}
+  .fld input:focus{background:#2a3038}
+  .fld.wide{grid-column:1/-1}
+
+  .color{display:flex;gap:6px;align-items:center}
+  .color input[type=color]{width:30px;height:28px;padding:0;border:1px solid var(--line);background:none;border-radius:3px;cursor:pointer}
+
+  textarea{
+    width:100%;min-height:150px;resize:vertical;background:#15181c;color:#cfd6de;
+    border:1px solid var(--line);border-radius:3px;padding:9px 10px;
+    font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace;font-size:12px;line-height:1.6;
+    white-space:pre;overflow-x:auto;
+  }
+  .note{font-size:11.5px;color:var(--ink2);line-height:1.6;margin:7px 0 0}
+  .rowb{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+  .sw{width:20px;height:20px;border-radius:3px;border:1px solid rgba(255,255,255,.18);cursor:pointer;padding:0}
+  .count{font-size:12.5px;font-weight:650}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <h1>Royal SpecBoard <span style="font-size:12px;color:var(--ink2);font-weight:400">設計師規格工作臺</span></h1>
+    <em>畫面只是確認用。要交出去的是下面那段文字。</em>
+  </header>
+
+  <div class="bar">
+    <select class="b" id="preset"></select>
+    <div class="fld" style="width:104px"><i data-scrub="cw" data-step="10">寬</i><input id="cw"></div>
+    <div class="fld" style="width:104px"><i data-scrub="ch" data-step="10">高</i><input id="ch"></div>
+    <div class="fld" style="width:92px"><i data-scrub="grid" data-step="1">格</i><input id="cgrid"></div>
+    <div class="color"><input type="color" id="cbg"><span style="font-size:11.5px;color:var(--ink2)">底色</span></div>
+    <button class="b" id="tgGuide" aria-pressed="true">吸附</button>
+    <button class="b" id="tgGrid" aria-pressed="true">格線</button>
+    <button class="b" id="tgDim" aria-pressed="true">標註</button>
+  </div>
+
+  <div class="stage" style="position:relative"><canvas id="cv"></canvas><div class="zoom" id="zoom"></div><input id="dimEdit" style="display:none;position:absolute;width:64px;font:600 12px ui-monospace,monospace;text-align:center;border:1.5px solid #4CC3D9;border-radius:4px;padding:2px 3px;background:#0E1116;color:#F2F4F7;z-index:5"></div>
+
+  <div class="specbar sec">
+    <div class="lbl">規格文字（可改可貼，套用後重繪）</div>
+    <textarea id="spec" spellcheck="false"></textarea>
+    <div class="rowb" style="margin-top:8px">
+      <button class="b" id="bUndo" disabled>復原</button>
+      <button class="b" id="bRedo" disabled>重做</button>
+      <button class="b" id="btnApply">套用文字</button>
+      <button class="b" id="btnCopy">複製</button>
+      <button class="b" id="btnReset">回到範例</button>
+      <button class="b" id="btnSelf">載入工作臺目前版面</button>
+      <button class="b" id="btnFolder">載入指定資料夾內容</button>
+      <span class="note" id="msg" style="margin:0">以 // 開頭的行是註解，會被保留。</span>
+    </div>
+  </div>
+
+  <!-- 右欄工具列：順序照 Roy 的常用操作鏈——加元件→調顏色→輸入文字→調字級→上下移 -->
+  <div class="insp">
+    <div id="inspGrip" title="拖拉調整寬度"></div>
+    <div class="sec">
+      <div class="lbl">加入元件</div>
+      <div class="rowb" id="palette"></div>
+    </div>
+    <div class="sec">
+      <div class="lbl">填色</div>
+      <div class="color">
+        <input type="color" id="pfillc" disabled>
+        <div class="fld" style="flex:1"><i>hex</i><input id="pfill" disabled></div>
+      </div>
+      <div class="rowb" style="margin-top:7px" id="swFill"></div>
+    </div>
+    <div class="sec">
+      <div class="lbl">文字</div>
+      <div class="fld wide"><i>內容</i><input id="pbody" disabled></div>
+      <div class="f" style="margin-top:6px">
+        <div class="fld"><i data-scrub="size" data-step="2">級數</i><input id="psize" disabled></div>
+        <div class="color"><input type="color" id="pcolorc" disabled><div class="fld" style="flex:1"><i>色</i><input id="pcolor" disabled></div></div>
+      </div>
+      <div class="rowb" style="margin-top:6px">
+        <button class="b sm" data-al="left" disabled>靠左</button>
+        <button class="b sm" data-al="center" disabled>置中</button>
+        <button class="b sm" data-al="right" disabled>靠右</button>
+        <button class="b sm" data-va="top" disabled>上</button>
+        <button class="b sm" data-va="middle" disabled>中</button>
+        <button class="b sm" data-va="bottom" disabled>下</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="lbl">動作</div>
+      <div class="rowb">
+        <button class="b sm" id="bDup" disabled>複製一份</button>
+        <button class="b sm" id="bFront" disabled>上移</button>
+        <button class="b sm" id="bBack" disabled>下移</button>
+        <button class="b sm" id="bDel" disabled>刪除</button>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="lbl">位置與尺寸（px）　<span style="color:var(--ink2)" id="pidView"></span></div>
+      <div class="f">
+        <div class="fld"><i data-scrub="x" data-step="1">X</i><input id="px" disabled></div>
+        <div class="fld"><i data-scrub="y" data-step="1">Y</i><input id="py" disabled></div>
+        <div class="fld"><i data-scrub="w" data-step="1">寬</i><input id="pw" disabled></div>
+        <div class="fld"><i data-scrub="h" data-step="1">高</i><input id="ph" disabled></div>
+        <div class="fld"><i data-scrub="r" data-step="1">圓角</i><input id="pr" disabled></div>
+        <div class="fld"><i data-scrub="op" data-step="5">透明</i><input id="pop" disabled></div>
+      </div>
+    </div>
+    <div class="sec">
+      <div class="lbl">對齊與分布　<span class="count" id="cnt">未選取</span></div>
+      <div class="rowb">
+        <button class="b sm" data-align="l" disabled>靠左</button>
+        <button class="b sm" data-align="hc" disabled>水平置中</button>
+        <button class="b sm" data-align="r" disabled>靠右</button>
+        <button class="b sm" data-align="t" disabled>靠上</button>
+        <button class="b sm" data-align="vc" disabled>垂直置中</button>
+        <button class="b sm" data-align="bt" disabled>靠下</button>
+      </div>
+      <div class="rowb" style="margin-top:6px">
+        <button class="b sm" data-dist="h" disabled>水平等距</button>
+        <button class="b sm" data-dist="v" disabled>垂直等距</button>
+        <div class="fld" style="width:96px"><i data-scrub="gap" data-step="4">間距</i><input id="gapv" value="32"></div>
+        <button class="b sm" data-space="h" disabled>依間距橫排</button>
+        <button class="b sm" data-space="v" disabled>依間距直排</button>
+      </div>
+      <p class="note">單選時「靠左」＝對齊畫布；多選對齊選取範圍。等距需三個以上。</p>
+    </div>
+    <div class="sec">
+      <div class="lbl">選取 id</div>
+      <div class="fld wide"><i>id</i><input id="pid" disabled></div>
+      <p class="note">Shift 點選加減；空白處拖曳框選；方向鍵微調（Shift ×10）；D 複製；Ctrl+Z 復原（Shift 重做）；Esc 取消。</p>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+'use strict';
+
+const PRESETS = [
+  ['2K 桌機',2560,1440],['FHD 桌機',1920,1080],['MacBook',1512,982],
+  ['平板直式',834,1194],['手機',390,844],['手機大',430,932],['自訂',0,0],
+];
+const SWATCH = ['#0E1116','#1A2029','#232B36','#3B7A8C','#4CC3D9','#E0326F','#F2B544','#8FBF73','#F2F4F7','#FFFFFF'];
+
+const DEFAULTS = {
+  容器:  {type:'rect', w:720, h:480, fill:'#1A2029', r:16},
+  按鈕:  {type:'rect', w:320, h:96,  fill:'#4CC3D9', r:48, body:'按鈕', size:36, color:'#0E1116', align:'center', valign:'middle'},
+  標題:  {type:'rect', w:1200,h:140, fill:'none', body:'標題文字', size:96, color:'#F2F4F7', align:'left', valign:'middle'},
+  內文:  {type:'rect', w:800, h:200, fill:'none', body:'內文段落，會自動換行。', size:32, color:'#9AA2AD', align:'left', valign:'top'},
+  導覽列:{type:'rect', w:2560,h:96,  fill:'#171C22', r:0},
+  圖片框:{type:'rect', w:960, h:540, fill:'#2B3038', r:8},
+  圓形:  {type:'ellipse', w:120, h:120, fill:'#3B7A8C'},
+  分隔線:{type:'rect', w:1200,h:2,   fill:'#3A404A', r:0},
+};
+
+let canvasDef = {w:2560,h:1440,bg:'#0E1116',grid:8};
+let shapes = [], selection = [], drag = null, marquee = null, guides = {x:[],y:[]};
+let snapOn = true, gridOn = true, dimOn = true, counter = 1, comments = [];
+
+const SAMPLE = `// 設計師規格工作臺範例 v1
+#canvas w=2560 h=1440 bg=#0E1116 grid=8
+rect id=nav x=0 y=0 w=2560 h=96 fill=#171C22
+rect id=logo x=80 y=32 w=160 h=32 fill=#4CC3D9 r=4
+rect id=hero_bg x=0 y=96 w=2560 h=760 fill=#151B22
+rect id=headline x=160 y=280 w=1400 h=200 fill=none body="把判斷變成結構" size=112 color=#F2F4F7 align=left valign=middle
+rect id=sub x=160 y=500 w=1100 h=120 fill=none body="知識工程如何把專家的內隱知識，轉變為可以交接的東西。" size=36 color=#9AA2AD align=left valign=top
+rect id=cta x=160 y=660 w=320 h=96 fill=#4CC3D9 r=48 body="開始閱讀" size=36 color=#0E1116 align=center valign=middle
+rect id=art x=1680 y=240 w=720 h=480 fill=#2B3038 r=16
+rect id=card1 x=160 y=920 w=720 h=360 fill=#1A2029 r=16
+rect id=card2 x=920 y=920 w=720 h=360 fill=#1A2029 r=16
+rect id=card3 x=1680 y=920 w=720 h=360 fill=#1A2029 r=16`;
+
+const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const P = id => document.getElementById(id);
+let S=1, DPR=1, dirty=true;
+
+function layout(){
+  const stage = cv.parentElement;
+  const availW = stage.clientWidth - 28;
+  const availH = Math.max(240, stage.clientHeight - 28);  // 單屏工作台：畫布吃滿主區
+  S = Math.min(availW/canvasDef.w, availH/canvasDef.h);
+  DPR = Math.min(2, devicePixelRatio||1);
+  cv.style.width = Math.round(canvasDef.w*S)+'px';
+  cv.style.height = Math.round(canvasDef.h*S)+'px';
+  cv.width = Math.round(canvasDef.w*S*DPR);
+  cv.height = Math.round(canvasDef.h*S*DPR);
+  ctx.setTransform(S*DPR,0,0,S*DPR,0,0);
+  P('zoom').textContent = `${canvasDef.w}×${canvasDef.h} · ${Math.round(S*100)}%`;
+  dirty = true;
+}
+
+/* ── 繪圖 ── */
+function roundRect(x,y,w,h,r){
+  const rr=Math.max(0,Math.min(r,Math.min(w,h)/2));
+  ctx.beginPath();
+  ctx.moveTo(x+rr,y); ctx.lineTo(x+w-rr,y); ctx.quadraticCurveTo(x+w,y,x+w,y+rr);
+  ctx.lineTo(x+w,y+h-rr); ctx.quadraticCurveTo(x+w,y+h,x+w-rr,y+h);
+  ctx.lineTo(x+rr,y+h); ctx.quadraticCurveTo(x,y+h,x,y+h-rr);
+  ctx.lineTo(x,y+rr); ctx.quadraticCurveTo(x,y,x+rr,y); ctx.closePath();
+}
+function wrap(text,maxW){
+  const out=[];
+  for (const para of String(text).split('\n')){ // body 內部現在存真換行
+    let line='';
+    for (const ch of para){
+      /* +2 捨入容差（2026-09-15 Roy 紅圈）：擷取座標取整後，盒寬常恰好比字寬
+         少 1px，「底色」「59%」這類剛好貼滿的字就被折成直排——量測值與整數
+         座標之間永遠差那一點，換行判斷要吃得下 */
+      if (ctx.measureText(line+ch).width>maxW+2 && line){ out.push(line); line=ch; }
+      else line+=ch;
+    }
+    out.push(line);
+  }
+  return out;
+}
+function drawShape(s){
+  ctx.save(); ctx.globalAlpha=(s.op??100)/100;
+  if (s.fill && s.fill!=='none'){
+    ctx.fillStyle=s.fill;
+    if (s.type==='ellipse'){ ctx.beginPath(); ctx.ellipse(s.x+s.w/2,s.y+s.h/2,s.w/2,s.h/2,0,0,Math.PI*2); ctx.fill(); }
+    else { roundRect(s.x,s.y,s.w,s.h,s.r||0); ctx.fill(); }
+  }
+  /* stroke 欄位（2026-09-15，Roy 兩度點名框線）：同色底上的按鈕全靠 1px 邊框
+     區分——沒有它，自畫像右欄整排按鈕隱形。線寬固定 1.5 設計 px，夠了。 */
+  if (s.stroke && s.stroke!=='none'){
+    ctx.strokeStyle=s.stroke; ctx.lineWidth=1.5;
+    if (s.type==='ellipse'){ ctx.beginPath(); ctx.ellipse(s.x+s.w/2,s.y+s.h/2,s.w/2,s.h/2,0,0,Math.PI*2); ctx.stroke(); }
+    else { roundRect(s.x,s.y,s.w,s.h,s.r||0); ctx.stroke(); }
+  }
+  if (s.body){
+    const fs=s.size||32;
+    ctx.font=`${fs}px "Noto Sans TC","PingFang TC",system-ui,sans-serif`;
+    ctx.fillStyle=s.color||'#F2F4F7'; ctx.textBaseline='top';
+    const lh=fs*1.35, lines=wrap(s.body,s.w), total=lines.length*lh;
+    let y=s.y;
+    if ((s.valign||'middle')==='middle') y=s.y+(s.h-total)/2;
+    else if (s.valign==='bottom') y=s.y+s.h-total;
+    for (const ln of lines){
+      const wpx=ctx.measureText(ln).width; let x=s.x;
+      if ((s.align||'left')==='center') x=s.x+(s.w-wpx)/2;
+      else if (s.align==='right') x=s.x+s.w-wpx;
+      ctx.fillText(ln,x,y); y+=lh;
+    }
+  }
+  ctx.restore();
+}
+function render(){
+  ctx.save(); ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle=canvasDef.bg; ctx.fillRect(0,0,cv.width,cv.height); ctx.restore();
+
+  if (gridOn && canvasDef.grid>0){
+    const step = canvasDef.grid*S<10 ? canvasDef.grid*8 : canvasDef.grid;
+    if (step*S>=5){
+      ctx.save(); ctx.strokeStyle='rgba(255,255,255,.055)'; ctx.lineWidth=1/S;
+      for(let x=0;x<=canvasDef.w;x+=step){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,canvasDef.h);ctx.stroke();}
+      for(let y=0;y<=canvasDef.h;y+=step){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(canvasDef.w,y);ctx.stroke();}
+      ctx.restore();
+    }
+  }
+
+  for (const s of shapes) drawShape(s);
+
+  ctx.save();
+  for (const s of selection){
+    ctx.strokeStyle='#4CC3D9'; ctx.lineWidth=(selection.length>1?1.5:2)/S;
+    ctx.strokeRect(s.x,s.y,s.w,s.h);
+  }
+  if (selection.length===1){
+    const hs=9/S; ctx.fillStyle='#4CC3D9';
+    for (const h of handles(selection[0])) ctx.fillRect(h.x-hs/2,h.y-hs/2,hs,hs);
+  } else if (selection.length>1){
+    const b=bbox(selection);
+    ctx.setLineDash([8/S,5/S]); ctx.strokeStyle='#4CC3D9'; ctx.lineWidth=1.5/S;
+    ctx.strokeRect(b.x,b.y,b.w,b.h); ctx.setLineDash([]);
+  }
+  ctx.restore();
+
+  ctx.save(); ctx.strokeStyle='#E0326F'; ctx.lineWidth=1.5/S; ctx.setLineDash([6/S,4/S]);
+  for (const v of guides.x){ctx.beginPath();ctx.moveTo(v,0);ctx.lineTo(v,canvasDef.h);ctx.stroke();}
+  for (const v of guides.y){ctx.beginPath();ctx.moveTo(0,v);ctx.lineTo(canvasDef.w,v);ctx.stroke();}
+  ctx.restore();
+
+  if (marquee){
+    const r=normRect(marquee);
+    ctx.save(); ctx.fillStyle='rgba(76,195,217,.14)'; ctx.strokeStyle='#4CC3D9'; ctx.lineWidth=1/S;
+    ctx.fillRect(r.x,r.y,r.w,r.h); ctx.strokeRect(r.x,r.y,r.w,r.h); ctx.restore();
+  }
+  drawDims();
+}
+
+/* ───────── 標註層（基板第 1b 步，2026-09-15）─────────
+   共享知覺面移植到螢幕域：單選件常駐顯示 寬×高、四向鄰距（無鄰件則到畫布
+   邊緣），每個數字可點、原地輸入（吃運算式）。改值的瞬間 pushSpec()——
+   右欄的規格文字同步更新，「看見的數字」與「交出去的文字」是同一份。 */
+let dimLabels = [];                     // {cx,cy: 畫布座標；wpx,hpx: 螢幕像素；type,payload}
+function evalNum(str, fb){
+  if (!/^[\d\s+\-*/().]+$/.test(str)) return fb;
+  try { const v = Function('"use strict";return('+str+')')(); return isFinite(v)?v:fb; }
+  catch { return fb; }
+}
+const DIMC='#4CC3D9', MRGC='#F2B544';
+function dimText(txt, cx, cy, color, type, payload){
+  ctx.font = (11/S)+'px ui-monospace,monospace';
+  const wpx = ctx.measureText(txt).width*S + 8, hpx = 15;
+  /* 碰撞閃避（Roy：「量尺非常棒，可是會互相遮蔽」）：與已放標籤重疊就往下
+     階梯疊放——工程圖的做法，兩個數字上下並列，都讀得到 */
+  const hits = d => Math.abs(cx-d.cx)*S < (wpx+d.wpx)/2 && Math.abs(cy-d.cy)*S < (hpx+d.hpx)/2;
+  let guard = 0;
+  while (dimLabels.some(hits) && guard++ < 8) cy += (hpx+3)/S;
+  ctx.fillStyle='rgba(14,17,22,.88)';
+  ctx.fillRect(cx-(wpx/2)/S, cy-(hpx/2)/S, wpx/S, hpx/S);
+  ctx.strokeStyle=color; ctx.lineWidth=1/S;
+  ctx.strokeRect(cx-(wpx/2)/S, cy-(hpx/2)/S, wpx/S, hpx/S);
+  ctx.fillStyle=color; ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.fillText(txt, cx, cy);
+  ctx.textAlign='start'; ctx.textBaseline='alphabetic';
+  dimLabels.push({cx, cy, wpx, hpx, type, payload});
+}
+function dimSeg(x0,y0,x1,y1,color){
+  ctx.strokeStyle=color; ctx.lineWidth=1/S;
+  ctx.beginPath(); ctx.moveTo(x0,y0); ctx.lineTo(x1,y1); ctx.stroke();
+  const t=4/S;
+  ctx.beginPath();
+  if (y0===y1){ ctx.moveTo(x0,y0-t);ctx.lineTo(x0,y0+t);ctx.moveTo(x1,y1-t);ctx.lineTo(x1,y1+t); }
+  else        { ctx.moveTo(x0-t,y0);ctx.lineTo(x0+t,y0);ctx.moveTo(x1-t,y1);ctx.lineTo(x1+t,y1); }
+  ctx.stroke();
+}
+function dimNeighbors(b){
+  const row = shapes.filter(o=>o!==b && o.y < b.y+b.h && b.y < o.y+o.h);
+  const col = shapes.filter(o=>o!==b && o.x < b.x+b.w && b.x < o.x+o.w);
+  return {
+    L: row.filter(o=>o.x+o.w <= b.x+0.5).sort((p,q)=>(q.x+q.w)-(p.x+p.w))[0],
+    R: row.filter(o=>o.x >= b.x+b.w-0.5).sort((p,q)=>p.x-q.x)[0],
+    T: col.filter(o=>o.y+o.h <= b.y+0.5).sort((p,q)=>(q.y+q.h)-(p.y+p.h))[0],
+    B: col.filter(o=>o.y >= b.y+b.h-0.5).sort((p,q)=>p.y-q.y)[0],
+  };
+}
+function drawDims(){
+  dimLabels = [];
+  if (!dimOn || selection.length!==1) return;
+  const b = selection[0], off = 14/S;
+  ctx.save();
+  dimSeg(b.x, b.y-off, b.x+b.w, b.y-off, DIMC);
+  dimText(String(Math.round(b.w)), b.x+b.w/2, b.y-off-9/S, DIMC, 'w');
+  dimSeg(b.x+b.w+off, b.y, b.x+b.w+off, b.y+b.h, DIMC);
+  dimText(String(Math.round(b.h)), b.x+b.w+off+22/S, b.y+b.h/2, DIMC, 'h');
+  const nb = dimNeighbors(b), cyv = b.y+b.h/2, cxv = b.x+b.w/2;
+  const gap = (x0,y0,x1,y1,val,color,type,payload)=>{
+    if (val < 0.5) return;
+    dimSeg(x0,y0,x1,y1,color);
+    dimText(String(Math.round(val)), (x0+x1)/2, (y0+y1)/2 - (y0===y1?9/S:0), color, type, payload);
+  };
+  if (nb.L) gap(nb.L.x+nb.L.w, cyv, b.x, cyv, b.x-(nb.L.x+nb.L.w), DIMC, 'gapL', nb.L);
+  else      gap(0, cyv, b.x, cyv, b.x, MRGC, 'mgL');
+  if (nb.R) gap(b.x+b.w, cyv, nb.R.x, cyv, nb.R.x-(b.x+b.w), DIMC, 'gapR', nb.R);
+  else      gap(b.x+b.w, cyv, canvasDef.w, cyv, canvasDef.w-(b.x+b.w), MRGC, 'mgR');
+  if (nb.T) gap(cxv, nb.T.y+nb.T.h, cxv, b.y, b.y-(nb.T.y+nb.T.h), DIMC, 'gapT', nb.T);
+  else      gap(cxv, 0, cxv, b.y, b.y, MRGC, 'mgT');
+  if (nb.B) gap(cxv, b.y+b.h, cxv, nb.B.y, nb.B.y-(b.y+b.h), DIMC, 'gapB', nb.B);
+  else      gap(cxv, b.y+b.h, cxv, canvasDef.h, canvasDef.h-(b.y+b.h), MRGC, 'mgB');
+  ctx.restore();
+}
+function hitDim(p){                      // p: 畫布座標
+  for (const d of dimLabels)
+    if (Math.abs(p.x-d.cx)*S <= d.wpx/2 && Math.abs(p.y-d.cy)*S <= d.hpx/2) return d;
+  return null;
+}
+const dimEdit = P('dimEdit');
+let dimTarget = null;
+function openDimEdit(d){
+  dimTarget = d;
+  const host = cv.parentElement.getBoundingClientRect(), cvr = cv.getBoundingClientRect();
+  dimEdit.style.left = (cvr.left-host.left + d.cx*S - 32) + 'px';
+  dimEdit.style.top  = (cvr.top -host.top  + d.cy*S - 10) + 'px';
+  const b = selection[0], nb = d.payload;
+  dimEdit.value = String(Math.round(({w:()=>b.w, h:()=>b.h,
+    gapL:()=>b.x-(nb.x+nb.w), gapR:()=>nb.x-(b.x+b.w),
+    gapT:()=>b.y-(nb.y+nb.h), gapB:()=>nb.y-(b.y+b.h),
+    mgL:()=>b.x, mgR:()=>canvasDef.w-(b.x+b.w),
+    mgT:()=>b.y, mgB:()=>canvasDef.h-(b.y+b.h)})[d.type]()));
+  dimEdit.style.display='block'; dimEdit.focus(); dimEdit.select();
+}
+function commitDimEdit(){
+  const b = selection[0];
+  if (!dimTarget || !b) return closeDimEdit();
+  const v = evalNum(dimEdit.value, NaN), d = dimTarget, nb = d.payload;
+  if (!isNaN(v)) {
+    /* 間距語義：改間距＝移動選取件，鄰件與畫布不動；寬高左上錨（同控點行為） */
+    if (d.type==='w') b.w = Math.max(1, Math.round(v));
+    else if (d.type==='h') b.h = Math.max(1, Math.round(v));
+    else if (d.type==='gapL') b.x = nb.x+nb.w+v;
+    else if (d.type==='gapR') b.x = nb.x - v - b.w;
+    else if (d.type==='gapT') b.y = nb.y+nb.h+v;
+    else if (d.type==='gapB') b.y = nb.y - v - b.h;
+    else if (d.type==='mgL')  b.x = v;
+    else if (d.type==='mgR')  b.x = canvasDef.w - v - b.w;
+    else if (d.type==='mgT')  b.y = v;
+    else if (d.type==='mgB')  b.y = canvasDef.h - v - b.h;
+    b.x=Math.round(b.x); b.y=Math.round(b.y);
+    syncInsp(); pushSpec(); dirty=true;   // 改值即同步 DSL——看見的與交出去的是同一份
+  }
+  closeDimEdit();
+}
+function closeDimEdit(){ dimEdit.style.display='none'; dimTarget=null; }
+dimEdit.addEventListener('keydown', e=>{
+  if (e.key==='Enter') commitDimEdit();
+  if (e.key==='Escape') closeDimEdit();
+  e.stopPropagation();                    // 別讓 Delete/方向鍵掉進畫布快捷鍵
+});
+dimEdit.addEventListener('blur', commitDimEdit);
+
+function tick(){ if(dirty){render();dirty=false;} requestAnimationFrame(tick); }
+
+function handles(s){
+  const xs=[s.x,s.x+s.w/2,s.x+s.w], ys=[s.y,s.y+s.h/2,s.y+s.h], out=[];
+  for(let j=0;j<3;j++)for(let i=0;i<3;i++){if(i===1&&j===1)continue;out.push({x:xs[i],y:ys[j],i,j});}
+  return out;
+}
+function bbox(list){
+  const x=Math.min(...list.map(s=>s.x)), y=Math.min(...list.map(s=>s.y));
+  const x2=Math.max(...list.map(s=>s.x+s.w)), y2=Math.max(...list.map(s=>s.y+s.h));
+  return {x,y,w:x2-x,h:y2-y};
+}
+const normRect = m => ({x:Math.min(m.x0,m.x1),y:Math.min(m.y0,m.y1),w:Math.abs(m.x1-m.x0),h:Math.abs(m.y1-m.y0)});
+const hitRect = (a,b) => a.x<b.x+b.w && b.x<a.x+a.w && a.y<b.y+b.h && b.y<a.y+a.h;
+
+/* ── 吸附 ── */
+function snapGroup(list){
+  guides={x:[],y:[]};
+  const g=canvasDef.grid||1;
+  const b=bbox(list);
+  let dx=Math.round(b.x/g)*g-b.x, dy=Math.round(b.y/g)*g-b.y;
+  if (snapOn){
+    const tol=8/S;
+    for (const axis of ['x','y']){
+      const W = axis==='x'?canvasDef.w:canvasDef.h;
+      const c=[0,W,W/2];
+      for (const s of shapes){ if(list.includes(s))continue;
+        if(axis==='x') c.push(s.x,s.x+s.w/2,s.x+s.w); else c.push(s.y,s.y+s.h/2,s.y+s.h); }
+      const base = axis==='x' ? [b.x+dx,b.x+dx+b.w/2,b.x+dx+b.w] : [b.y+dy,b.y+dy+b.h/2,b.y+dy+b.h];
+      let best=null;
+      for (const m of base) for (const v of c){
+        const d=v-m; if(Math.abs(d)>tol)continue;
+        if(!best||Math.abs(d)<Math.abs(best.d)) best={d,hits:[v]};
+        else if(Math.abs(d)===Math.abs(best.d)) best.hits.push(v);
+      }
+      if (best){ if(axis==='x') dx+=best.d; else dy+=best.d; guides[axis]=[...new Set(best.hits)]; }
+    }
+  }
+  for (const s of list){ s.x=Math.round(s.x+dx); s.y=Math.round(s.y+dy); }
+}
+
+/* ── 序列化 ── */
+const esc = t => String(t).replace(/\\/g,'\\\\').replace(/"/g,'\\"').replace(/\r?\n/g,'\\n'); // v7.4：跳脫反斜線與換行——多行 body 曾把 DSL 撐斷成注入
+function serialize(){
+  const L=[`#canvas w=${canvasDef.w} h=${canvasDef.h} bg=${canvasDef.bg} grid=${canvasDef.grid}`];
+  for (const s of shapes){
+    let t=`${s.type} id=${s.id} x=${Math.round(s.x)} y=${Math.round(s.y)} w=${Math.round(s.w)} h=${Math.round(s.h)} fill=${s.fill||'none'}`;
+    if (s.r) t+=` r=${Math.round(s.r)}`;
+    if (s.stroke && s.stroke!=='none') t+=` stroke=${s.stroke}`;
+    if ((s.op??100)!==100) t+=` op=${Math.round(s.op)}`;
+    if (s.body) t+=` body="${esc(s.body)}" size=${s.size||32} color=${s.color||'#F2F4F7'} align=${s.align||'left'} valign=${s.valign||'middle'}`;
+    L.push(t);
+  }
+  return (comments.length?comments.join('\n')+'\n':'')+L.join('\n');
+}
+function parse(text){
+  const nc=[], ns=[]; let cd={...canvasDef};
+  for (const raw of text.split(/\r?\n/)){
+    const ln=raw.trim(); if(!ln)continue;
+    if (ln.startsWith('//')){ nc.push(ln); continue; }
+    const kv={};
+    for (const m of ln.matchAll(/([a-zA-Z_]+)=("(?:[^"\\]|\\.)*"|\S+)/g)){
+      let v=m[2]; if(v.startsWith('"')) v=v.slice(1,-1).replace(/\\(.)/g,(mm,c)=>c==='n'?'\n':c); // 完整還原：\n→換行、\"→"、\\→\
+      kv[m[1]]=v;
+    }
+    if (ln.startsWith('#canvas')){
+      cd={w:+kv.w||cd.w,h:+kv.h||cd.h,bg:kv.bg||cd.bg,grid:kv.grid!==undefined?+kv.grid:cd.grid};
+      continue;
+    }
+    const type=ln.split(/\s+/)[0];
+    if (type!=='rect'&&type!=='ellipse') continue;
+    ns.push({type,id:kv.id||('s'+(counter++)),
+      x:+kv.x||0,y:+kv.y||0,w:+kv.w||100,h:+kv.h||100,
+      fill:kv.fill||'none',stroke:kv.stroke||'',r:+kv.r||0,op:kv.op!==undefined?+kv.op:100,
+      body:kv.body||'',size:+kv.size||32,color:kv.color||'#F2F4F7',
+      align:kv.align||'left',valign:kv.valign||'middle'});
+  }
+  return {cd,ns,nc};
+}
+/* 復原／重做（2026-09-15 Roy：「這工具需要復原鍵XDDDD」）——
+   快照單位＝規格文字：所有變更（拖曳結束、面板改值、套用文字）最後都會走
+   pushSpec()，在這裡錄一格剛剛好；undo/redo＝套用歷史文字，不回錄。 */
+let hist=[], hp=-1, muteRec=false;
+function record(){
+  if (muteRec) return;
+  const t = P('spec').value;
+  if (hist[hp]===t) return;
+  hist = hist.slice(0, hp+1); hist.push(t);
+  if (hist.length>100) hist.shift();
+  hp = hist.length-1; syncUndoUI();
+}
+function timeTravel(d){
+  const np = hp+d; if (np<0 || np>=hist.length) return;
+  hp = np; muteRec = true;
+  P('spec').value = hist[hp]; P('btnApply').click();
+  muteRec = false; syncUndoUI();
+}
+function syncUndoUI(){ P('bUndo').disabled = hp<=0; P('bRedo').disabled = hp>=hist.length-1; }
+const pushSpec = () => { P('spec').value = serialize(); record(); };
+
+/* ── 互動 ── */
+const local = e => { const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/S,y:(e.clientY-r.top)/S}; };
+function pickAt(p){
+  for (let i=shapes.length-1;i>=0;i--){
+    const s=shapes[i];
+    if (p.x>=s.x&&p.x<=s.x+s.w&&p.y>=s.y&&p.y<=s.y+s.h) return s;
+  }
+  return null;
+}
+cv.addEventListener('pointerdown', e=>{
+  const p=local(e);
+  { const d = hitDim(p); if (d) { openDimEdit(d); return; } }
+  if (selection.length===1){
+    for (const h of handles(selection[0])){
+      if (Math.abs(p.x-h.x)<12/S && Math.abs(p.y-h.y)<12/S){
+        cv.setPointerCapture(e.pointerId);
+        drag={mode:'resize',h,o:{...selection[0]}}; return;
+      }
+    }
+  }
+  const hit = pickAt(p);
+  if (hit){
+    if (e.shiftKey){
+      if (selection.includes(hit)) selection = selection.filter(s=>s!==hit);
+      else selection = [...selection, hit];
+    } else if (!selection.includes(hit)) selection=[hit];
+    if (selection.length){
+      cv.setPointerCapture(e.pointerId);
+      drag={mode:'move', ox:p.x, oy:p.y, start:selection.map(s=>({s,x:s.x,y:s.y}))};
+    }
+  } else {
+    if (!e.shiftKey) selection=[];
+    cv.setPointerCapture(e.pointerId);
+    marquee={x0:p.x,y0:p.y,x1:p.x,y1:p.y,add:e.shiftKey,base:[...selection]};
+  }
+  guides={x:[],y:[]}; syncInsp(); dirty=true;
+});
+cv.addEventListener('pointermove', e=>{
+  const p=local(e);
+  if (!drag && !marquee) cv.style.cursor = hitDim(p) ? 'text' : '';
+  if (marquee){ marquee.x1=p.x; marquee.y1=p.y;
+    const r=normRect(marquee);
+    const inside = shapes.filter(s=>hitRect(r,s));
+    selection = marquee.add ? [...new Set([...marquee.base,...inside])] : inside;
+    syncInsp(); dirty=true; return;
+  }
+  if (!drag||!selection.length) return;
+  if (drag.mode==='move'){
+    const dx=p.x-drag.ox, dy=p.y-drag.oy;
+    for (const it of drag.start){ it.s.x=it.x+dx; it.s.y=it.y+dy; }
+    snapGroup(selection);
+  } else {
+    const s=selection[0], o=drag.o, h=drag.h, g=canvasDef.grid||1;
+    let x0=o.x,y0=o.y,x1=o.x+o.w,y1=o.y+o.h;
+    if (h.i===0) x0=Math.min(Math.round(p.x/g)*g,x1-g);
+    if (h.i===2) x1=Math.max(Math.round(p.x/g)*g,x0+g);
+    if (h.j===0) y0=Math.min(Math.round(p.y/g)*g,y1-g);
+    if (h.j===2) y1=Math.max(Math.round(p.y/g)*g,y0+g);
+    s.x=x0;s.y=y0;s.w=x1-x0;s.h=y1-y0;
+  }
+  syncInsp(); dirty=true;
+});
+function endDrag(){
+  if (drag||marquee){ drag=null; marquee=null; guides={x:[],y:[]}; pushSpec(); syncInsp(); dirty=true; }
+}
+cv.addEventListener('pointerup', endDrag);
+cv.addEventListener('pointercancel', endDrag);
+
+addEventListener('keydown', e=>{
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); timeTravel(e.shiftKey?1:-1); return; }
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); timeTravel(1); return; }
+  if (e.key==='Escape'){ selection=[]; syncInsp(); dirty=true; return; }
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='a'){ e.preventDefault(); selection=[...shapes]; syncInsp(); dirty=true; return; }
+  if (!selection.length) return;
+  const d = e.shiftKey ? (canvasDef.grid||1)*10 : (canvasDef.grid||1);
+  let used=true;
+  if (e.key==='ArrowLeft') selection.forEach(s=>s.x-=d);
+  else if (e.key==='ArrowRight') selection.forEach(s=>s.x+=d);
+  else if (e.key==='ArrowUp') selection.forEach(s=>s.y-=d);
+  else if (e.key==='ArrowDown') selection.forEach(s=>s.y+=d);
+  else if (e.key==='Delete'||e.key==='Backspace') del();
+  else if (e.key==='d'||e.key==='D') dup();
+  else used=false;
+  if (used){ e.preventDefault(); syncInsp(); pushSpec(); dirty=true; }
+});
+
+/* ── 對齊與分布 ── */
+function targetBox(){
+  return selection.length>1 ? bbox(selection) : {x:0,y:0,w:canvasDef.w,h:canvasDef.h};
+}
+function align(kind){
+  const b=targetBox();
+  for (const s of selection){
+    if (kind==='l') s.x=b.x;
+    else if (kind==='hc') s.x=Math.round(b.x+(b.w-s.w)/2);
+    else if (kind==='r') s.x=b.x+b.w-s.w;
+    else if (kind==='t') s.y=b.y;
+    else if (kind==='vc') s.y=Math.round(b.y+(b.h-s.h)/2);
+    else if (kind==='bt') s.y=b.y+b.h-s.h;
+  }
+  pushSpec(); syncInsp(); dirty=true;
+}
+function distribute(axis){
+  if (selection.length<3) return;
+  const k = axis==='h'?'x':'y', dim = axis==='h'?'w':'h';
+  const list=[...selection].sort((a,b)=>a[k]-b[k]);
+  const first=list[0], last=list[list.length-1];
+  const span=(last[k]+last[dim])-first[k];
+  const used=list.reduce((n,s)=>n+s[dim],0);
+  const gap=(span-used)/(list.length-1);
+  let cur=first[k];
+  for (const s of list){ s[k]=Math.round(cur); cur+=s[dim]+gap; }
+  pushSpec(); syncInsp(); dirty=true;
+}
+function spaceBy(axis){
+  if (selection.length<2) return;
+  const gap=parseFloat(P('gapv').value)||0;
+  const k=axis==='h'?'x':'y', dim=axis==='h'?'w':'h';
+  const list=[...selection].sort((a,b)=>a[k]-b[k]);
+  let cur=list[0][k];
+  for (const s of list){ s[k]=Math.round(cur); cur+=s[dim]+gap; }
+  pushSpec(); syncInsp(); dirty=true;
+}
+for (const b of document.querySelectorAll('[data-align]')) b.onclick=()=>align(b.dataset.align);
+for (const b of document.querySelectorAll('[data-dist]')) b.onclick=()=>distribute(b.dataset.dist);
+for (const b of document.querySelectorAll('[data-space]')) b.onclick=()=>spaceBy(b.dataset.space);
+
+/* ── 檢視器 ── */
+const FIELDS={x:'px',y:'py',w:'pw',h:'ph',r:'pr',op:'pop',size:'psize'};
+function syncInsp(){
+  const n=selection.length, one=n===1?selection[0]:null;
+  P('cnt').textContent = n===0?'未選取':(n===1?one.id:`已選 ${n} 個`);
+  P('pid').disabled=!one; P('pid').value=one?one.id:'';
+  const b = n?bbox(selection):null;
+  for (const [k,id] of Object.entries(FIELDS)){
+    const el=P(id);
+    el.disabled = n===0 || (n>1 && k!=='x' && k!=='y' && k!=='size' && k!=='r' && k!=='op');
+    if (n===0) el.value='';
+    else if (one) el.value=Math.round(one[k] ?? (k==='op'?100:0));
+    else el.value = (k==='x'?Math.round(b.x): k==='y'?Math.round(b.y): k==='w'?Math.round(b.w): k==='h'?Math.round(b.h):'');
+  }
+  for (const id of ['pfill','pfillc','pcolor','pcolorc']) P(id).disabled = n===0;
+  P('pbody').disabled=!one;
+  for (const el of document.querySelectorAll('[data-al],[data-va]')) el.disabled = n===0;
+  for (const el of document.querySelectorAll('[data-align]')) el.disabled = n===0;
+  for (const el of document.querySelectorAll('[data-dist]')) el.disabled = n<3;
+  for (const el of document.querySelectorAll('[data-space]')) el.disabled = n<2;
+  for (const id of ['bDup','bFront','bBack','bDel']) P(id).disabled = n===0;
+  if (one){
+    P('pfill').value=one.fill||'none';
+    if(/^#[0-9a-f]{6}$/i.test(one.fill||'')) P('pfillc').value=one.fill;
+    P('pbody').value=one.body||'';
+    P('pcolor').value=one.color||'#F2F4F7';
+    if(/^#[0-9a-f]{6}$/i.test(one.color||'')) P('pcolorc').value=one.color;
+    for (const el of document.querySelectorAll('[data-al]')) el.setAttribute('aria-pressed',String(el.dataset.al===(one.align||'left')));
+    for (const el of document.querySelectorAll('[data-va]')) el.setAttribute('aria-pressed',String(el.dataset.va===(one.valign||'middle')));
+  } else {
+    P('pbody').value=''; 
+    for (const el of document.querySelectorAll('[data-al],[data-va]')) el.setAttribute('aria-pressed','false');
+  }
+}
+for (const [k,id] of Object.entries(FIELDS)){
+  const el=P(id);
+  const go=()=>{
+    if(!selection.length) return;
+    const v=parseFloat(el.value); if(!isFinite(v)) return;
+    if (selection.length>1 && (k==='x'||k==='y')){
+      const b=bbox(selection), d=v-(k==='x'?b.x:b.y);
+      selection.forEach(s=>s[k]+=d);
+    } else if (selection.length>1){
+      selection.forEach(s=>s[k]=v);
+    } else {
+      const s=selection[0]; s[k]=(k==='w'||k==='h')?Math.max(1,v):v;
+    }
+    syncInsp(); pushSpec(); dirty=true;
+  };
+  el.addEventListener('change',go);
+  el.addEventListener('keydown',e=>{ if(e.key==='Enter'){go();el.blur();} });
+}
+P('pid').addEventListener('change',()=>{ const o=selection[0]; if(o){ o.id=P('pid').value.replace(/\s+/g,'_')||o.id; pushSpec(); syncInsp(); } });
+P('pbody').addEventListener('input',()=>{ const o=selection[0]; if(o){ o.body=P('pbody').value; pushSpec(); dirty=true; } });
+const applyAll = (key,val) => { selection.forEach(s=>s[key]=val); syncInsp(); pushSpec(); dirty=true; };
+P('pfill').addEventListener('change',()=>applyAll('fill',P('pfill').value.trim()));
+P('pfillc').addEventListener('input',()=>{ applyAll('fill',P('pfillc').value); P('pfill').value=P('pfillc').value; });
+P('pcolor').addEventListener('change',()=>applyAll('color',P('pcolor').value.trim()));
+P('pcolorc').addEventListener('input',()=>{ applyAll('color',P('pcolorc').value); P('pcolor').value=P('pcolorc').value; });
+for (const el of document.querySelectorAll('[data-al]')) el.onclick=()=>applyAll('align',el.dataset.al);
+for (const el of document.querySelectorAll('[data-va]')) el.onclick=()=>applyAll('valign',el.dataset.va);
+
+/* 標籤拖曳微調 */
+for (const el of document.querySelectorAll('[data-scrub]')){
+  el.addEventListener('pointerdown', e=>{
+    const key=el.dataset.scrub, step=+el.dataset.step;
+    const isCanvas=['cw','ch','grid'].includes(key);
+    if (key==='gap'){ /* 一般欄位 */ }
+    else if (!isCanvas && !selection.length) return;
+    el.setPointerCapture(e.pointerId); let last=e.clientX;
+    const mv=ev=>{
+      const d=Math.round((ev.clientX-last)/3)*step; if(!d)return; last=ev.clientX;
+      if (isCanvas){
+        const m={cw:'w',ch:'h',grid:'grid'}[key];
+        canvasDef[m]=Math.max(m==='grid'?1:100,canvasDef[m]+d); syncCanvas(); layout();
+      } else if (key==='gap'){
+        P('gapv').value=Math.max(0,(parseFloat(P('gapv').value)||0)+d); return;
+      } else {
+        selection.forEach(s=>s[key]=Math.max((key==='w'||key==='h')?1:0,(s[key]??0)+d));
+        syncInsp();
+      }
+      pushSpec(); dirty=true;
+    };
+    const up=()=>{ el.removeEventListener('pointermove',mv); el.removeEventListener('pointerup',up); };
+    el.addEventListener('pointermove',mv); el.addEventListener('pointerup',up);
+  });
+}
+
+/* ── 動作 ── */
+function add(name){
+  const d=DEFAULTS[name], g=canvasDef.grid||1;
+  const s={...d,id:(name.replace(/[^\u4e00-\u9fa5a-zA-Z]/g,'')||'s'),op:100,x:0,y:0};
+  s.id = ({容器:'box',按鈕:'btn',標題:'title',內文:'text',導覽列:'nav',圖片框:'img',圓形:'dot',分隔線:'div'}[name]||'s')+(counter++);
+  s.x=Math.round((canvasDef.w-s.w)/2/g)*g;
+  s.y=Math.round((canvasDef.h-s.h)/2/g)*g;
+  for (let i=0;i<20 && shapes.some(o=>o.x===s.x&&o.y===s.y);i++) s.y+=g*4;
+  shapes.push(s); selection=[s]; syncInsp(); pushSpec(); dirty=true;
+}
+function dup(){
+  if(!selection.length)return;
+  const g=canvasDef.grid||1, copies=selection.map(s=>({...s,id:s.id.replace(/\d*$/,'')+(counter++),x:s.x+g*4,y:s.y+g*4}));
+  shapes.push(...copies); selection=copies; syncInsp(); pushSpec(); dirty=true;
+}
+function del(){ shapes=shapes.filter(s=>!selection.includes(s)); selection=[]; syncInsp(); pushSpec(); dirty=true; }
+P('bDup').onclick=dup; P('bDel').onclick=del;
+P('bFront').onclick=()=>{ shapes=shapes.filter(s=>!selection.includes(s)).concat(selection); pushSpec(); dirty=true; };
+P('bBack').onclick=()=>{ shapes=selection.concat(shapes.filter(s=>!selection.includes(s))); pushSpec(); dirty=true; };
+
+P('btnApply').onclick=()=>{
+  record();   // 貼入的原文先錄一格——套用後就算被 serialize 正規化，也退得回原文
+  const {cd,ns,nc}=parse(P('spec').value);
+  canvasDef=cd; shapes=ns; comments=nc; selection=[];
+  syncCanvas(); layout(); syncInsp(); pushSpec();
+  P('msg').textContent=`已套用：${ns.length} 個元件，畫布 ${cd.w}×${cd.h}。`;
+};
+P('bUndo').onclick=()=>timeTravel(-1);
+P('bRedo').onclick=()=>timeTravel(1);
+P('btnCopy').onclick=async()=>{
+  try{ await navigator.clipboard.writeText(P('spec').value); P('msg').textContent='已複製到剪貼簿。'; }
+  catch{ P('spec').select(); P('msg').textContent='無法自動複製，已全選，請手動複製。'; }
+};
+/* 匯入器 v1（Roy 定規格：兩顆）──
+   「載入工作臺目前版面」＝自我擷取（與 console 版共用 snapshot-capture.js，單一真相）；
+   「載入指定資料夾內容」＝瀏覽資料夾（http 目錄列表）選檔載入。兩者皆需 http。 */
+P('btnSelf').onclick = async ()=>{
+  if (!window.snapshotCapture){
+    try { eval(await (await fetch('snapshot-capture.js?v='+Date.now())).text()); }
+    catch(e){ P('msg').textContent='需要本機伺服器（launch: layout）才能載入擷取器。'; return; }
+  }
+  P('spec').value = window.snapshotCapture(innerWidth, innerHeight)
+    .replace(/^\/\/ 實況擷取：.*$/m, '// 實況擷取：Royal SpecBoard 自身（' + new Date().toISOString().slice(0,10) + '）');
+  P('btnApply').click();
+};
+P('btnFolder').onclick = async ()=>{
+  const dir = prompt('資料夾（相對本站的網址路徑）', 'samples/');
+  if (!dir) return;
+  let html;
+  try { html = await (await fetch(dir)).text(); }
+  catch(e){ P('msg').textContent='讀不到目錄（需要本機伺服器的目錄列表）。'; return; }
+  const doc = new DOMParser().parseFromString(html, 'text/html');
+  const files = [...doc.querySelectorAll('a[href]')].map(a=>a.getAttribute('href'))
+    .filter(h=>/\.(txt|spec|dsl)$/i.test(h));
+  if (!files.length){ P('msg').textContent='該資料夾沒有 .txt/.spec/.dsl 檔。'; return; }
+  const load = async f => {
+    P('spec').value = await (await fetch(dir.replace(/\/?$/,'/') + f + '?v=' + Date.now())).text();
+    P('btnApply').click();
+  };
+  if (files.length===1) return load(files[0]);
+  // 多檔：臨時下拉選單，選了即載入並自我移除
+  const sel = document.createElement('select'); sel.className='b';
+  sel.innerHTML = '<option value="">選擇檔案…</option>' +
+    files.map(f=>`<option>${f}</option>`).join('');
+  P('btnFolder').after(sel); sel.focus();
+  sel.onchange = ()=>{ if(sel.value) load(sel.value); sel.remove(); };
+  sel.onblur = ()=>sel.remove();
+};
+P('btnReset').onclick=()=>{ P('spec').value=SAMPLE; P('btnApply').click(); };
+
+/* ── 畫布 ── */
+function syncCanvas(){
+  P('cw').value=canvasDef.w; P('ch').value=canvasDef.h;
+  P('cgrid').value=canvasDef.grid; P('cbg').value=canvasDef.bg;
+  const m=PRESETS.findIndex(p=>p[1]===canvasDef.w&&p[2]===canvasDef.h);
+  P('preset').value = m>=0?String(m):String(PRESETS.length-1);
+}
+PRESETS.forEach((p,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=p[1]?`${p[0]} ${p[1]}×${p[2]}`:p[0]; P('preset').appendChild(o); });
+P('preset').onchange=()=>{ const p=PRESETS[+P('preset').value]; if(p[1]){ canvasDef.w=p[1]; canvasDef.h=p[2]; syncCanvas(); layout(); pushSpec(); } };
+for (const [id,key] of [['cw','w'],['ch','h'],['cgrid','grid']]){
+  P(id).addEventListener('change',()=>{ const v=parseInt(P(id).value); if(isFinite(v)&&v>0){ canvasDef[key]=v; syncCanvas(); layout(); pushSpec(); } });
+}
+P('cbg').addEventListener('input',()=>{ canvasDef.bg=P('cbg').value; pushSpec(); dirty=true; });
+P('tgGuide').onclick=()=>{ snapOn=!snapOn; P('tgGuide').setAttribute('aria-pressed',String(snapOn)); };
+P('tgGrid').onclick=()=>{ gridOn=!gridOn; P('tgGrid').setAttribute('aria-pressed',String(gridOn)); dirty=true; };
+P('tgDim').onclick=()=>{ dimOn=!dimOn; P('tgDim').setAttribute('aria-pressed',String(dimOn)); dirty=true; };
+
+const pal=P('palette');
+for (const name of Object.keys(DEFAULTS)){
+  const b=document.createElement('button'); b.className='b sm'; b.textContent=name; b.onclick=()=>add(name); pal.appendChild(b);
+}
+const sw=P('swFill');
+for (const c of SWATCH){
+  const b=document.createElement('button'); b.className='sw'; b.style.background=c; b.title=c;
+  b.onclick=()=>{ if(selection.length) applyAll('fill',c); }; sw.appendChild(b);
+}
+
+/* 右欄寬拖拉：--inspw 記進 localStorage，畫布跟著 relayout */
+{
+  const grip = P('inspGrip'), app = document.querySelector('.app');
+  const saved = +localStorage.getItem('specboard.inspw');
+  if (saved) app.style.setProperty('--inspw', saved+'px');
+  let gd = null;
+  grip.addEventListener('pointerdown', e=>{
+    gd = {x:e.clientX, w:document.querySelector('.insp').offsetWidth};
+    grip.classList.add('on'); grip.setPointerCapture(e.pointerId); e.preventDefault();
+  });
+  grip.addEventListener('pointermove', e=>{
+    if(!gd) return;
+    const w = Math.max(280, Math.min(620, gd.w + (gd.x - e.clientX)));
+    app.style.setProperty('--inspw', w+'px'); layout();
+  });
+  const end = ()=>{ if(gd){ localStorage.setItem('specboard.inspw',
+    document.querySelector('.insp').offsetWidth); gd=null; grip.classList.remove('on'); } };
+  grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
+}
+addEventListener('resize', layout);
+P('spec').value=SAMPLE; P('btnApply').click(); tick();
+})();
+</script>
+</body>
+</html>

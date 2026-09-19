@@ -99,6 +99,7 @@
       <button class="b" id="btnApply">套用文字</button>
       <button class="b" id="btnCopy">複製</button>
       <button class="b" id="btnReset">回到範例</button>
+      <button class="b" id="btnSave">下載 .spec.txt</button>
       <button class="b" id="btnSelf">載入工作臺目前版面</button>
       <button class="b" id="btnFolder">載入指定資料夾內容</button>
       <span class="note" id="msg" style="margin:0">以 // 開頭的行是註解，會被保留。</span>
@@ -558,7 +559,8 @@ function timeTravel(d){
   muteRec = false; syncUndoUI();
 }
 function syncUndoUI(){ P('bUndo').disabled = hp<=0; P('bRedo').disabled = hp>=hist.length-1; }
-const pushSpec = () => { P('spec').value = serialize(); record(); };
+const pushSpec = () => { P('spec').value = serialize(); record();
+  try{ localStorage.setItem('specboard.spec', P('spec').value); }catch{} };  // 自動存：關掉再開就在
 
 /* ── 互動 ── */
 const local = e => { const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/S,y:(e.clientY-r.top)/S}; };
@@ -845,6 +847,15 @@ P('btnFolder').onclick = async ()=>{
   sel.onblur = ()=>sel.remove();
 };
 P('btnReset').onclick=()=>{ P('spec').value=SAMPLE; P('btnApply').click(); };
+P('btnSave').onclick=()=>{
+  const txt=P('spec').value;
+  const m=txt.match(/^\/\/\s*(.+)$/m);
+  const name=((m&&m[1])||'specboard').replace(/[\\/:*?"<>|\s]+/g,'-').slice(0,60);
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));
+  a.download=name+'.spec.txt'; a.click(); URL.revokeObjectURL(a.href);
+  P('msg').textContent='已下載 '+a.download+'。';
+};
 
 /* ── 畫布 ── */
 function syncCanvas(){
@@ -893,7 +904,9 @@ for (const c of SWATCH){
   grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
 }
 addEventListener('resize', layout);
-P('spec').value=SAMPLE; P('btnApply').click(); tick();
+let boot=SAMPLE; try{ boot=localStorage.getItem('specboard.spec')||SAMPLE; }catch{}
+P('spec').value=boot; P('btnApply').click(); tick();
+if(boot!==SAMPLE) P('msg').textContent='已還原上次的版面（自動存檔）。「回到範例」可清掉。';
 })();
 </script>
 </body>

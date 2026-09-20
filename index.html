@@ -73,7 +73,7 @@
 <body>
 <div class="app">
   <header>
-    <h1>Royal SpecBoard <span style="font-size:12px;color:var(--ink2);font-weight:400">設計師規格工作臺</span></h1>
+    <h1>Royal SpecBoard <span style="font-size:12px;color:var(--ink2);font-weight:400">設計師規格工作臺</span><span id="unsaved" title="下載後有改動" style="display:none;color:#F2B544;margin-left:6px">●</span></h1>
     <em>畫面只是確認用。要交出去的是下面那段文字。</em>
   </header>
 
@@ -100,6 +100,7 @@
       <button class="b" id="btnCopy">複製</button>
       <button class="b" id="btnReset">回到範例</button>
       <button class="b" id="btnSave">下載 .spec.txt</button>
+      <button class="b" id="btnPng">匯出 PNG（含規格）</button>
       <button class="b" id="btnSelf">載入工作臺目前版面</button>
       <button class="b" id="btnFolder">載入規格檔</button>
       <span class="note" id="msg" style="margin:0">以 // 開頭的行是註解，會被保留。</span>
@@ -222,7 +223,7 @@ rect id=card1 x=160 y=920 w=720 h=360 fill=#1A2029 r=16
 rect id=card2 x=920 y=920 w=720 h=360 fill=#1A2029 r=16
 rect id=card3 x=1680 y=920 w=720 h=360 fill=#1A2029 r=16`;
 
-const cv = document.getElementById('cv'), ctx = cv.getContext('2d');
+const cv = document.getElementById('cv'); let ctx = cv.getContext('2d');
 const P = id => document.getElementById(id);
 let S=1, DPR=1, dirty=true;
 
@@ -560,7 +561,10 @@ function timeTravel(d){
 }
 function syncUndoUI(){ P('bUndo').disabled = hp<=0; P('bRedo').disabled = hp>=hist.length-1; }
 const pushSpec = () => { P('spec').value = serialize(); record();
-  try{ localStorage.setItem('specboard.spec', P('spec').value); }catch{} };  // 自動存：關掉再開就在
+  try{ localStorage.setItem('specboard.spec', P('spec').value); }catch{}
+  if (P('spec').value !== savedSpec) P('unsaved').style.display=''; };  // 自動存：關掉再開就在；● 記「下載後有改」
+let savedSpec = null;
+const markSaved = () => { savedSpec = P('spec').value; P('unsaved').style.display='none'; };
 
 /* ── 互動 ── */
 const local = e => { const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/S,y:(e.clientY-r.top)/S}; };
@@ -830,12 +834,12 @@ P('btnFolder').onclick = ()=>{
      線上版都能用，不需要伺服器。不用 webkitdirectory——Chrome 會跳「要上傳 372 個檔案嗎」
      警語（其實沒上傳，但字面嚇人）且把子資料夾全掃進來。 */
   const inp = document.createElement('input');
-  inp.type='file'; inp.multiple=true; inp.accept='.txt,.spec,.dsl'; inp.style.display='none';
+  inp.type='file'; inp.multiple=true; inp.accept='.txt,.spec,.dsl,.png'; inp.style.display='none';
   inp.onchange = ()=>{
-    const files = [...inp.files].filter(f=>/\.(txt|spec|dsl)$/i.test(f.name) && !/^\./.test(f.name));
+    const files = [...inp.files].filter(f=>/\.(txt|spec|dsl|png)$/i.test(f.name) && !/^\./.test(f.name));
     inp.remove();
-    if (!files.length){ P('msg').textContent='沒有選到 .txt/.spec/.dsl 檔。'; return; }
-    const load = async f => { P('spec').value = await f.text(); P('btnApply').click(); };
+    if (!files.length){ P('msg').textContent='沒有選到 .txt/.spec/.dsl/.png 檔。'; return; }
+    const load = loadDropped;
     if (files.length===1) return load(files[0]);
     // 多檔：臨時下拉選單，選了即載入並自我移除
     const sel = document.createElement('select'); sel.className='b';
@@ -855,8 +859,54 @@ P('btnSave').onclick=()=>{
   const a=document.createElement('a');
   a.href=URL.createObjectURL(new Blob([txt],{type:'text/plain'}));
   a.download=name+'.spec.txt'; a.click(); URL.revokeObjectURL(a.href);
-  P('msg').textContent='已下載 '+a.download+'。';
+  markSaved(); P('msg').textContent='已下載 '+a.download+'。';
 };
+/* 匯出 PNG（借 ComfyUI：圖檔本身藏著工作流）——1:1 畫布尺寸離屏重繪，不含選取框／格線／量尺，
+   規格文字寫進 PNG 的 tEXt 區塊（keyword=specboard）。把這張圖丟回工作臺就重建。圖即規格。 */
+const specFileName = () => { const m=P('spec').value.match(/^\/\/\s*(.+)$/m);
+  return ((m&&m[1])||'specboard').replace(/[\\/:*?"<>|\s]+/g,'-').slice(0,60); };
+const crcTable = (()=>{ const t=new Uint32Array(256); for(let n=0;n<256;n++){ let c=n; for(let k=0;k<8;k++) c=(c&1)?(0xEDB88320^(c>>>1)):(c>>>1); t[n]=c>>>0; } return t; })();
+const crc32 = b => { let c=0xFFFFFFFF; for(const x of b) c=crcTable[(c^x)&255]^(c>>>8); return (c^0xFFFFFFFF)>>>0; };
+function pngAddText(buf, key, text){
+  const enc=new TextEncoder(); const kb=enc.encode(key), tb=enc.encode(text);
+  const data=new Uint8Array(kb.length+1+tb.length); data.set(kb); data[kb.length]=0; data.set(tb,kb.length+1);
+  const type=enc.encode('tEXt'); const chunk=new Uint8Array(12+data.length); const dv=new DataView(chunk.buffer);
+  dv.setUint32(0,data.length); chunk.set(type,4); chunk.set(data,8);
+  const crcIn=new Uint8Array(4+data.length); crcIn.set(type); crcIn.set(data,4); dv.setUint32(8+data.length,crc32(crcIn));
+  const src=new Uint8Array(buf); const out=new Uint8Array(src.length+chunk.length);
+  out.set(src.subarray(0,33)); out.set(chunk,33); out.set(src.subarray(33),33+chunk.length); return out;  // 33＝簽名 8＋IHDR 25
+}
+function pngReadText(buf, key){
+  const b=new Uint8Array(buf), dv=new DataView(buf), dec=new TextDecoder(); let p=8;
+  while(p+12<=b.length){ const len=dv.getUint32(p), type=String.fromCharCode(...b.subarray(p+4,p+8));
+    if(type==='tEXt'){ const d=b.subarray(p+8,p+8+len), z=d.indexOf(0);
+      if(z>0 && dec.decode(d.subarray(0,z))===key) return dec.decode(d.subarray(z+1)); }
+    if(type==='IEND') break; p+=12+len; }
+  return null;
+}
+P('btnPng').onclick=async()=>{
+  const off=document.createElement('canvas'); off.width=canvasDef.w; off.height=canvasDef.h;
+  const live=ctx; ctx=off.getContext('2d');
+  ctx.fillStyle=canvasDef.bg; ctx.fillRect(0,0,off.width,off.height);
+  for (const sh of shapes) drawShape(sh);
+  ctx=live;
+  const blob=await new Promise(r=>off.toBlob(r,'image/png'));
+  const out=pngAddText(await blob.arrayBuffer(),'specboard',P('spec').value);
+  const a=document.createElement('a'); a.href=URL.createObjectURL(new Blob([out],{type:'image/png'}));
+  a.download=specFileName()+'.png'; a.click(); URL.revokeObjectURL(a.href);
+  markSaved(); P('msg').textContent='已匯出 '+a.download+'（規格藏在圖檔裡，丟回來即重建）。';
+};
+/* 拖放載入（借 ComfyUI：檔案直接丟到畫布）——.png 讀 tEXt、其餘當規格文字 */
+async function loadDropped(f){
+  let txt=null;
+  if (/\.png$/i.test(f.name)) { txt=pngReadText(await f.arrayBuffer(),'specboard'); if(txt===null){ P('msg').textContent='這張 PNG 沒有藏規格。'; return; } }
+  else txt=await f.text();
+  P('spec').value=txt; P('btnApply').click();
+}
+for (const el of [P('cv').parentElement, P('spec')]){
+  el.addEventListener('dragover', e=>{ e.preventDefault(); e.dataTransfer.dropEffect='copy'; });
+  el.addEventListener('drop', e=>{ e.preventDefault(); const f=e.dataTransfer.files[0]; if(f) loadDropped(f); });
+}
 
 /* ── 畫布 ── */
 function syncCanvas(){
@@ -906,7 +956,7 @@ for (const c of SWATCH){
 }
 addEventListener('resize', layout);
 let boot=SAMPLE; try{ boot=localStorage.getItem('specboard.spec')||SAMPLE; }catch{}
-P('spec').value=boot; P('btnApply').click(); tick();
+P('spec').value=boot; P('btnApply').click(); markSaved(); tick();
 if(boot!==SAMPLE) P('msg').textContent='已還原上次的版面（自動存檔）。「回到範例」可清掉。';
 })();
 </script>

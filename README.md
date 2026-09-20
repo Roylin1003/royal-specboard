@@ -27,15 +27,16 @@ Royal SpecBoard 讓三方坐同一張桌子——
 
 下載後**雙擊 `index.html` 就能用**（file:// 直開，零安裝、零建置、零相依）。
 
-只有兩顆「載入」按鈕走 `fetch`，需要一個本機伺服器：
+只有「載入工作臺目前版面」走 `fetch`，需要一個本機伺服器：
 
 ```bash
 python -m http.server 8000
 ```
 
-然後開 `http://localhost:8000/`。
-（「載入指定資料夾內容」依賴伺服器的目錄列表功能——`python -m http.server` 有，
-GitHub Pages／Netlify 這類靜態託管沒有，線上版該鈕載不到東西是正常的。）
+然後開 `http://localhost:8000/`。「載入指定資料夾內容」走瀏覽器原生的資料夾選擇器，
+任何位置、file:// 直開、線上版都能用。
+
+版面每動一次就自動存進瀏覽器（localStorage），關掉再開還在；「下載 .spec.txt」把規格存成檔。
 
 ## DSL 一分鐘上手
 
@@ -58,7 +59,7 @@ rect id=cta x=160 y=660 w=320 h=96 fill=#4CC3D9 r=48 body="開始閱讀" size=36
 開那個頁面的 DevTools console，整檔貼上按 Enter，規格文字就進了剪貼簿。
 拿真實專案的現況進工作臺診斷、標注、改版，這是第一步。
 
-`samples/` 附兩份擷取範例，可用「載入指定資料夾內容」直接載入。
+`samples/` 附兩份擷取範例，下載 repo 後用「載入指定資料夾內容」選那個資料夾即可。
 
 ## 操作
 

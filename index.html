@@ -823,28 +823,27 @@ P('btnSelf').onclick = async ()=>{
     .replace(/^\/\/ 實況擷取：.*$/m, '// 實況擷取：Royal SpecBoard 自身（' + new Date().toISOString().slice(0,10) + '）');
   P('btnApply').click();
 };
-P('btnFolder').onclick = async ()=>{
-  const dir = prompt('資料夾（相對本站的網址路徑）', 'samples/');
-  if (!dir) return;
-  let html;
-  try { html = await (await fetch(dir)).text(); }
-  catch(e){ P('msg').textContent='讀不到目錄（需要本機伺服器的目錄列表）。'; return; }
-  const doc = new DOMParser().parseFromString(html, 'text/html');
-  const files = [...doc.querySelectorAll('a[href]')].map(a=>a.getAttribute('href'))
-    .filter(h=>/\.(txt|spec|dsl)$/i.test(h));
-  if (!files.length){ P('msg').textContent='該資料夾沒有 .txt/.spec/.dsl 檔。'; return; }
-  const load = async f => {
-    P('spec').value = await (await fetch(dir.replace(/\/?$/,'/') + f + '?v=' + Date.now())).text();
-    P('btnApply').click();
+P('btnFolder').onclick = ()=>{
+  /* v2（2026-09-20）：原本走 fetch 目錄列表——只看得到伺服器根目錄底下、線上版無目錄列表、
+     Windows 路徑進不了 fetch（Roy 選 ZPD/pixel-vehicles 得到「看不到可用的檔案」）。
+     改用瀏覽器原生資料夾選擇器：任何位置、file:// 直開、線上版都能用，不需要伺服器。 */
+  const inp = document.createElement('input');
+  inp.type='file'; inp.webkitdirectory=true; inp.multiple=true; inp.style.display='none';
+  inp.onchange = ()=>{
+    const files = [...inp.files].filter(f=>/\.(txt|spec|dsl)$/i.test(f.name) && !/^\./.test(f.name));
+    inp.remove();
+    if (!files.length){ P('msg').textContent='該資料夾沒有 .txt/.spec/.dsl 檔。'; return; }
+    const load = async f => { P('spec').value = await f.text(); P('btnApply').click(); };
+    if (files.length===1) return load(files[0]);
+    // 多檔：臨時下拉選單，選了即載入並自我移除
+    const sel = document.createElement('select'); sel.className='b';
+    sel.innerHTML = '<option value="">選擇檔案…</option>' +
+      files.map((f,i)=>`<option value="${i}">${f.webkitRelativePath||f.name}</option>`).join('');
+    P('btnFolder').after(sel); sel.focus();
+    sel.onchange = ()=>{ if(sel.value!=='') load(files[+sel.value]); sel.remove(); };
+    sel.onblur = ()=>sel.remove();
   };
-  if (files.length===1) return load(files[0]);
-  // 多檔：臨時下拉選單，選了即載入並自我移除
-  const sel = document.createElement('select'); sel.className='b';
-  sel.innerHTML = '<option value="">選擇檔案…</option>' +
-    files.map(f=>`<option>${f}</option>`).join('');
-  P('btnFolder').after(sel); sel.focus();
-  sel.onchange = ()=>{ if(sel.value) load(sel.value); sel.remove(); };
-  sel.onblur = ()=>sel.remove();
+  document.body.appendChild(inp); inp.click();
 };
 P('btnReset').onclick=()=>{ P('spec').value=SAMPLE; P('btnApply').click(); };
 P('btnSave').onclick=()=>{

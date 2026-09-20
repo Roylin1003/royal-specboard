@@ -226,20 +226,40 @@ rect id=card3 x=1680 y=920 w=720 h=360 fill=#1A2029 r=16`;
 const cv = document.getElementById('cv'); let ctx = cv.getContext('2d');
 const P = id => document.getElementById(id);
 let S=1, DPR=1, dirty=true;
+/* 有邊界的畫布上放大看細節（2026-09-20，借 ComfyUI 的滾輪／拖動，但畫布仍是一台裝置的螢幕）：
+   <canvas> 元素撐滿舞台當「視窗」，畫布用 (S, ox, oy) 擺進去。Z=1 就是原本的整張塞進舞台。 */
+let Z=1, fitS=1, ox=0, oy=0, pan=null, spaceDown=false;
 
 function layout(){
   const stage = cv.parentElement;
   const availW = stage.clientWidth - 28;
   const availH = Math.max(240, stage.clientHeight - 28);  // 單屏工作台：畫布吃滿主區
-  S = Math.min(availW/canvasDef.w, availH/canvasDef.h);
+  fitS = Math.min(availW/canvasDef.w, availH/canvasDef.h);
+  S = fitS*Z;
   DPR = Math.min(2, devicePixelRatio||1);
-  cv.style.width = Math.round(canvasDef.w*S)+'px';
-  cv.style.height = Math.round(canvasDef.h*S)+'px';
-  cv.width = Math.round(canvasDef.w*S*DPR);
-  cv.height = Math.round(canvasDef.h*S*DPR);
-  ctx.setTransform(S*DPR,0,0,S*DPR,0,0);
-  P('zoom').textContent = `${canvasDef.w}×${canvasDef.h} · ${Math.round(S*100)}%`;
+  cv.style.width = availW+'px'; cv.style.height = availH+'px';
+  cv.width = Math.round(availW*DPR); cv.height = Math.round(availH*DPR);
+  if (Z===1){ ox = (availW-canvasDef.w*S)/2; oy = (availH-canvasDef.h*S)/2; }
+  else clampPan();
+  ctx.setTransform(S*DPR,0,0,S*DPR,ox*DPR,oy*DPR);
+  P('zoom').textContent = `${canvasDef.w}×${canvasDef.h} · ${Math.round(S*100)}%` + (Z>1 ? '　⤢ 回整張' : '');
   dirty = true;
+}
+function clampPan(){   // 畫布至少留 60px 在視窗內，放大後迷路也拖得回來
+  const W=cv.clientWidth, H=cv.clientHeight, m=60;
+  ox = Math.max(m-canvasDef.w*S, Math.min(W-m, ox));
+  oy = Math.max(m-canvasDef.h*S, Math.min(H-m, oy));
+}
+function fitView(){ Z=1; layout(); }
+function zoomAt(mx, my, factor){   // 以 (mx,my)（canvas 元素內 CSS px）為中心縮放：游標下那一點不動
+  const maxZ = Math.max(1/fitS, 2);          // 上限：100%（1 螢幕像素＝1 設計像素）或 2× fit，取大
+  const nz = Math.max(1, Math.min(maxZ, Z*factor));
+  if (nz===Z) return;
+  const cx=(mx-ox)/S, cy=(my-oy)/S;
+  Z=nz; S=fitS*Z;
+  ox = mx-cx*S; oy = my-cy*S;
+  if (Z===1) fitView(); else { clampPan(); ctx.setTransform(S*DPR,0,0,S*DPR,ox*DPR,oy*DPR);
+    P('zoom').textContent = `${canvasDef.w}×${canvasDef.h} · ${Math.round(S*100)}%　⤢ 回整張`; dirty=true; }
 }
 
 /* ── 繪圖 ── */
@@ -299,7 +319,9 @@ function drawShape(s){
 }
 function render(){
   ctx.save(); ctx.setTransform(1,0,0,1,0,0);
-  ctx.fillStyle=canvasDef.bg; ctx.fillRect(0,0,cv.width,cv.height); ctx.restore();
+  ctx.fillStyle='#141619'; ctx.fillRect(0,0,cv.width,cv.height); ctx.restore();
+  ctx.save(); ctx.beginPath(); ctx.rect(0,0,canvasDef.w,canvasDef.h); ctx.clip();
+  ctx.fillStyle=canvasDef.bg; ctx.fillRect(0,0,canvasDef.w,canvasDef.h);
 
   if (gridOn && canvasDef.grid>0){
     const step = canvasDef.grid*S<10 ? canvasDef.grid*8 : canvasDef.grid;
@@ -312,6 +334,7 @@ function render(){
   }
 
   for (const s of shapes) drawShape(s);
+  ctx.restore();   // 裁切結束——選取框、量尺、參考線可以畫出畫布外
 
   ctx.save();
   for (const s of selection){
@@ -423,8 +446,8 @@ let dimTarget = null;
 function openDimEdit(d){
   dimTarget = d;
   const host = cv.parentElement.getBoundingClientRect(), cvr = cv.getBoundingClientRect();
-  dimEdit.style.left = (cvr.left-host.left + d.cx*S - 32) + 'px';
-  dimEdit.style.top  = (cvr.top -host.top  + d.cy*S - 10) + 'px';
+  dimEdit.style.left = (cvr.left-host.left + ox + d.cx*S - 32) + 'px';
+  dimEdit.style.top  = (cvr.top -host.top  + oy + d.cy*S - 10) + 'px';
   const b = selection[0], nb = d.payload;
   dimEdit.value = String(Math.round(({w:()=>b.w, h:()=>b.h,
     gapL:()=>b.x-(nb.x+nb.w), gapR:()=>nb.x-(b.x+b.w),
@@ -567,7 +590,7 @@ let savedSpec = null;
 const markSaved = () => { savedSpec = P('spec').value; P('unsaved').style.display='none'; };
 
 /* ── 互動 ── */
-const local = e => { const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left)/S,y:(e.clientY-r.top)/S}; };
+const local = e => { const r=cv.getBoundingClientRect(); return {x:(e.clientX-r.left-ox)/S,y:(e.clientY-r.top-oy)/S}; };
 function pickAt(p){
   for (let i=shapes.length-1;i>=0;i--){
     const s=shapes[i];
@@ -576,6 +599,9 @@ function pickAt(p){
   return null;
 }
 cv.addEventListener('pointerdown', e=>{
+  if (e.button===1 || spaceDown){ e.preventDefault(); cv.setPointerCapture(e.pointerId);
+    pan={x:e.clientX, y:e.clientY, ox, oy}; cv.style.cursor='grabbing'; return; }
+  if (e.button!==0) return;
   const p=local(e);
   { const d = hitDim(p); if (d) { openDimEdit(d); return; } }
   if (selection.length===1){
@@ -604,8 +630,10 @@ cv.addEventListener('pointerdown', e=>{
   guides={x:[],y:[]}; syncInsp(); dirty=true;
 });
 cv.addEventListener('pointermove', e=>{
+  if (pan){ ox=pan.ox+(e.clientX-pan.x); oy=pan.oy+(e.clientY-pan.y); clampPan();
+    ctx.setTransform(S*DPR,0,0,S*DPR,ox*DPR,oy*DPR); dirty=true; return; }
   const p=local(e);
-  if (!drag && !marquee) cv.style.cursor = hitDim(p) ? 'text' : '';
+  if (!drag && !marquee) cv.style.cursor = spaceDown ? 'grab' : hitDim(p) ? 'text' : '';
   if (marquee){ marquee.x1=p.x; marquee.y1=p.y;
     const r=normRect(marquee);
     const inside = shapes.filter(s=>hitRect(r,s));
@@ -629,16 +657,25 @@ cv.addEventListener('pointermove', e=>{
   syncInsp(); dirty=true;
 });
 function endDrag(){
+  if (pan){ pan=null; cv.style.cursor = spaceDown ? 'grab' : ''; return; }
   if (drag||marquee){ drag=null; marquee=null; guides={x:[],y:[]}; pushSpec(); syncInsp(); dirty=true; }
 }
 cv.addEventListener('pointerup', endDrag);
 cv.addEventListener('pointercancel', endDrag);
+cv.addEventListener('wheel', e=>{ e.preventDefault(); const r=cv.getBoundingClientRect();
+  zoomAt(e.clientX-r.left, e.clientY-r.top, e.deltaY<0 ? 1.15 : 1/1.15); }, {passive:false});
+cv.addEventListener('auxclick', e=>{ if(e.button===1) e.preventDefault(); });
+P('zoom').style.cursor='pointer'; P('zoom').title='點一下回到整張（或按 0）';
+P('zoom').onclick=fitView;
+addEventListener('keyup', e=>{ if(e.key===' '){ spaceDown=false; if(!pan) cv.style.cursor=''; } });
 
 addEventListener('keydown', e=>{
   if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
   if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='z'){ e.preventDefault(); timeTravel(e.shiftKey?1:-1); return; }
   if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='y'){ e.preventDefault(); timeTravel(1); return; }
   if (e.key==='Escape'){ selection=[]; syncInsp(); dirty=true; return; }
+  if (e.key===' '){ e.preventDefault(); if(!spaceDown){ spaceDown=true; if(!drag&&!marquee) cv.style.cursor='grab'; } return; }
+  if (e.key==='0'){ fitView(); return; }
   if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='a'){ e.preventDefault(); selection=[...shapes]; syncInsp(); dirty=true; return; }
   if (!selection.length) return;
   const d = e.shiftKey ? (canvasDef.grid||1)*10 : (canvasDef.grid||1);

@@ -540,27 +540,36 @@ function serialize(){
   }
   return (comments.length?comments.join('\n')+'\n':'')+L.join('\n');
 }
+const LIM = {w:[1,1e5], h:[1,1e5], r:[0,1e4], op:[0,100], size:[1,2000], x:[-1e6,1e6], y:[-1e6,1e6]};
+const clampVal = (k,v) => { const l=LIM[k]; if(!isFinite(v)) return null; return l ? Math.min(l[1],Math.max(l[0],v)) : v; };
+const okColor = v => v==='none' || (typeof v==='string' && v.length<=40 && CSS.supports('color', v));
 function parse(text){
+  const seen=new Set();
   const nc=[], ns=[]; let cd={...canvasDef};
   for (const raw of text.split(/\r?\n/)){
     const ln=raw.trim(); if(!ln)continue;
     if (ln.startsWith('//')){ nc.push(ln); continue; }
     const kv={};
     for (const m of ln.matchAll(/([a-zA-Z_]+)=("(?:[^"\\]|\\.)*"|\S+)/g)){
-      let v=m[2]; if(v.startsWith('"')) v=v.slice(1,-1).replace(/\\(.)/g,(mm,c)=>c==='n'?'\n':c); // 完整還原：\n→換行、\"→"、\\→\
+      let v=m[2]; if(v.startsWith('"')) v=(v.length>1&&v.endsWith('"')?v.slice(1,-1):v.slice(1)).replace(/\\(.)/g,(mm,c)=>c==='n'?'\n':c); // 完整還原：\n→換行、\"→"、\\→\；未閉引號不吃掉尾字
       kv[m[1]]=v;
     }
     if (ln.startsWith('#canvas')){
-      cd={w:+kv.w||cd.w,h:+kv.h||cd.h,bg:kv.bg||cd.bg,grid:kv.grid!==undefined?+kv.grid:cd.grid};
+      const cw=+kv.w, ch=+kv.h, cg=+kv.grid;
+      cd={w:(cw>=16&&cw<=32768)?cw:cd.w, h:(ch>=16&&ch<=32768)?ch:cd.h,
+          bg:okColor(kv.bg)&&kv.bg!=='none'?kv.bg:cd.bg, grid:(cg>=0&&cg<=1e4)?cg:cd.grid};
       continue;
     }
     const type=ln.split(/\s+/)[0];
     if (type!=='rect'&&type!=='ellipse') continue;
-    ns.push({type,id:kv.id||('s'+(counter++)),
-      x:+kv.x||0,y:+kv.y||0,w:+kv.w||100,h:+kv.h||100,
-      fill:kv.fill||'none',stroke:kv.stroke||'',r:+kv.r||0,op:kv.op!==undefined?+kv.op:100,
-      body:kv.body||'',size:+kv.size||32,color:kv.color||'#F2F4F7',
-      align:kv.align||'left',valign:kv.valign||'middle'});
+    let id=(kv.id||'').replace(/\s+/g,'_')||('s'+(counter++));
+    { const base=id; let n=2; while(seen.has(id)) id=base+(n++); seen.add(id); }   // 重複 id 自動去重（之後 link 行要靠 id）
+    const num=(k,fb)=>{ const v=clampVal(k,+kv[k]); return v===null?fb:v; };
+    ns.push({type,id,
+      x:num('x',0),y:num('y',0),w:num('w',100),h:num('h',100),
+      fill:okColor(kv.fill)?kv.fill:'none',stroke:okColor(kv.stroke)?kv.stroke:'',r:num('r',0),op:kv.op!==undefined?num('op',100):100,
+      body:kv.body||'',size:num('size',32),color:okColor(kv.color)&&kv.color!=='none'?kv.color:'#F2F4F7',
+      align:['left','center','right'].includes(kv.align)?kv.align:'left',valign:['top','middle','bottom'].includes(kv.valign)?kv.valign:'middle'});
   }
   return {cd,ns,nc};
 }
@@ -773,10 +782,9 @@ for (const [k,id] of Object.entries(FIELDS)){
     if (selection.length>1 && (k==='x'||k==='y')){
       const b=bbox(selection), d=v-(k==='x'?b.x:b.y);
       selection.forEach(s=>s[k]+=d);
-    } else if (selection.length>1){
-      selection.forEach(s=>s[k]=v);
     } else {
-      const s=selection[0]; s[k]=(k==='w'||k==='h')?Math.max(1,v):v;
+      const cv2=clampVal(k,v); if(cv2===null) return;
+      selection.forEach(s=>s[k]=cv2);
     }
     syncInsp(); pushSpec(); dirty=true;
   };
@@ -786,9 +794,9 @@ for (const [k,id] of Object.entries(FIELDS)){
 P('pid').addEventListener('change',()=>{ const o=selection[0]; if(o){ o.id=P('pid').value.replace(/\s+/g,'_')||o.id; pushSpec(); syncInsp(); } });
 P('pbody').addEventListener('input',()=>{ const o=selection[0]; if(o){ o.body=P('pbody').value; pushSpec(); dirty=true; } });
 const applyAll = (key,val) => { selection.forEach(s=>s[key]=val); syncInsp(); pushSpec(); dirty=true; };
-P('pfill').addEventListener('change',()=>applyAll('fill',P('pfill').value.trim()));
+P('pfill').addEventListener('change',()=>{ const v=P('pfill').value.trim(); if(okColor(v)) applyAll('fill',v); else syncInsp(); });
 P('pfillc').addEventListener('input',()=>{ applyAll('fill',P('pfillc').value); P('pfill').value=P('pfillc').value; });
-P('pcolor').addEventListener('change',()=>applyAll('color',P('pcolor').value.trim()));
+P('pcolor').addEventListener('change',()=>{ const v=P('pcolor').value.trim(); if(okColor(v)&&v!=='none') applyAll('color',v); else syncInsp(); });
 P('pcolorc').addEventListener('input',()=>{ applyAll('color',P('pcolorc').value); P('pcolor').value=P('pcolorc').value; });
 for (const el of document.querySelectorAll('[data-al]')) el.onclick=()=>applyAll('align',el.dataset.al);
 for (const el of document.querySelectorAll('[data-va]')) el.onclick=()=>applyAll('valign',el.dataset.va);

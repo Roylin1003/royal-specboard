@@ -101,7 +101,7 @@
       <button class="b" id="btnReset">回到範例</button>
       <button class="b" id="btnSave">下載 .spec.txt</button>
       <button class="b" id="btnSelf">載入工作臺目前版面</button>
-      <button class="b" id="btnFolder">載入指定資料夾內容</button>
+      <button class="b" id="btnFolder">載入規格檔</button>
       <span class="note" id="msg" style="margin:0">以 // 開頭的行是註解，會被保留。</span>
     </div>
   </div>
@@ -826,19 +826,21 @@ P('btnSelf').onclick = async ()=>{
 P('btnFolder').onclick = ()=>{
   /* v2（2026-09-20）：原本走 fetch 目錄列表——只看得到伺服器根目錄底下、線上版無目錄列表、
      Windows 路徑進不了 fetch（Roy 選 ZPD/pixel-vehicles 得到「看不到可用的檔案」）。
-     改用瀏覽器原生資料夾選擇器：任何位置、file:// 直開、線上版都能用，不需要伺服器。 */
+     改用瀏覽器原生檔案選擇器（多選、只列 .txt/.spec/.dsl）：任何位置、file:// 直開、
+     線上版都能用，不需要伺服器。不用 webkitdirectory——Chrome 會跳「要上傳 372 個檔案嗎」
+     警語（其實沒上傳，但字面嚇人）且把子資料夾全掃進來。 */
   const inp = document.createElement('input');
-  inp.type='file'; inp.webkitdirectory=true; inp.multiple=true; inp.style.display='none';
+  inp.type='file'; inp.multiple=true; inp.accept='.txt,.spec,.dsl'; inp.style.display='none';
   inp.onchange = ()=>{
     const files = [...inp.files].filter(f=>/\.(txt|spec|dsl)$/i.test(f.name) && !/^\./.test(f.name));
     inp.remove();
-    if (!files.length){ P('msg').textContent='該資料夾沒有 .txt/.spec/.dsl 檔。'; return; }
+    if (!files.length){ P('msg').textContent='沒有選到 .txt/.spec/.dsl 檔。'; return; }
     const load = async f => { P('spec').value = await f.text(); P('btnApply').click(); };
     if (files.length===1) return load(files[0]);
     // 多檔：臨時下拉選單，選了即載入並自我移除
     const sel = document.createElement('select'); sel.className='b';
     sel.innerHTML = '<option value="">選擇檔案…</option>' +
-      files.map((f,i)=>`<option value="${i}">${f.webkitRelativePath||f.name}</option>`).join('');
+      files.map((f,i)=>`<option value="${i}">${f.name}</option>`).join('');
     P('btnFolder').after(sel); sel.focus();
     sel.onchange = ()=>{ if(sel.value!=='') load(files[+sel.value]); sel.remove(); };
     sel.onblur = ()=>sel.remove();

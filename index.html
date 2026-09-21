@@ -847,12 +847,42 @@ P('bDup').onclick=dup; P('bDel').onclick=del;
 P('bFront').onclick=()=>{ shapes=shapes.filter(s=>!selection.includes(s)).concat(selection); pushSpec(); dirty=true; };
 P('bBack').onclick=()=>{ shapes=selection.concat(shapes.filter(s=>!selection.includes(s))); pushSpec(); dirty=true; };
 
+/* 套用差異（2026-09-21，借 Claude Code 的「Edited 2 files ＋21 −0 ／ View changes」）：
+   套用的常是別人給的規格——GPT 的提案、Gemini 的改編、另一個 session 的施工單——
+   要看的是「跟我原本的差在哪」。一行摘要，點開才列細節。id 是身分（parse 已去重）。 */
+function specDiff(oldS, newS, oldCd, newCd){
+  const O = new Map(oldS.map(x=>[x.id,x])), N = new Map(newS.map(x=>[x.id,x]));
+  const added=[], removed=[], moved=[], resized=[], restyled=[];
+  for (const [id,n] of N){
+    const o = O.get(id); if (!o){ added.push(id); continue; }
+    if (o.x!==n.x || o.y!==n.y) moved.push(`${id}（${o.x},${o.y}→${n.x},${n.y}）`);
+    if (o.w!==n.w || o.h!==n.h) resized.push(`${id}（${o.w}×${o.h}→${n.w}×${n.h}）`);
+    const ch = ['fill','stroke','r','op','body','size','color','align','valign','type'].filter(k=>(o[k]??'')!==(n[k]??''));
+    if (ch.length) restyled.push(`${id}（${ch.join('、')}）`);
+  }
+  for (const id of O.keys()) if (!N.has(id)) removed.push(id);
+  const canvas = (oldCd.w!==newCd.w||oldCd.h!==newCd.h) ? [`畫布 ${oldCd.w}×${oldCd.h}→${newCd.w}×${newCd.h}`] : [];
+  return { added, removed, moved, resized, restyled, canvas,
+           total: added.length+removed.length+moved.length+resized.length+restyled.length+canvas.length };
+}
+const esc2 = t => String(t).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+function diffHtml(d, n, cd){
+  const head = `已套用：${n} 個元件，畫布 ${cd.w}×${cd.h}。`;
+  if (!d.total) return head + ' 跟上一版相同。';
+  const idsOf = (a, k) => a.length ? `${k}${a.length}` : '';
+  const sum = [idsOf(d.added,'＋'), idsOf(d.removed,'−'), d.moved.length?`移動 ${d.moved.length}`:'', d.resized.length?`改尺寸 ${d.resized.length}`:'',
+               d.restyled.length?`改樣式 ${d.restyled.length}`:'', d.canvas.length?'畫布':''].filter(Boolean).join('　');
+  const row = (label, arr) => arr.length ? `<div><b>${label}</b> ${esc2(arr.join('、'))}</div>` : '';
+  return `${head} <details style="display:inline"><summary style="cursor:pointer;color:#F2B544">${sum} ▸</summary>`
+       + `<div style="margin-top:4px;line-height:1.7">${row('＋新增', d.added)}${row('−刪除', d.removed)}${row('移動', d.moved)}${row('改尺寸', d.resized)}${row('改樣式', d.restyled)}${row('', d.canvas)}</div></details>`;
+}
 P('btnApply').onclick=()=>{
   record();   // 貼入的原文先錄一格——套用後就算被 serialize 正規化，也退得回原文
+  const prevS = shapes, prevCd = canvasDef;
   const {cd,ns,nc}=parse(P('spec').value);
   canvasDef=cd; shapes=ns; comments=nc; selection=[];
   syncCanvas(); layout(); syncInsp(); pushSpec();
-  P('msg').textContent=`已套用：${ns.length} 個元件，畫布 ${cd.w}×${cd.h}。`;
+  P('msg').innerHTML = prevS.length ? diffHtml(specDiff(prevS, ns, prevCd, cd), ns.length, cd) : `已套用：${ns.length} 個元件，畫布 ${cd.w}×${cd.h}。`;
 };
 P('bUndo').onclick=()=>timeTravel(-1);
 P('bRedo').onclick=()=>timeTravel(1);

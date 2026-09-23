@@ -24,6 +24,11 @@
   .bar{grid-area:bar;padding:8px 14px;border-bottom:1px solid var(--line);display:flex;gap:7px;flex-wrap:wrap;align-items:center}
   .stage{grid-area:stage;background:#141619;position:relative;display:flex;align-items:center;justify-content:center;padding:14px;min-height:0}
   canvas{display:block;touch-action:none;max-width:100%}
+  .sb{position:absolute;background:rgba(255,255,255,.22);border-radius:3px;display:none;cursor:pointer}
+  .sb:hover,.sb.on{background:rgba(76,195,217,.7)}
+  .spin{display:flex;flex-direction:column;align-self:stretch;border-left:1px solid var(--line)}
+  .spin button{flex:1;border:0;background:transparent;color:var(--ink2);font-size:8px;line-height:1;padding:0 6px;cursor:pointer}
+  .spin button:hover{background:#2a3038;color:var(--ink)}
   .zoom{position:absolute;right:10px;bottom:8px;font-size:11px;color:var(--ink2);font-variant-numeric:tabular-nums}
 
   .specbar{grid-area:spec;border-top:1px solid var(--line)}
@@ -79,6 +84,7 @@
 
   <div class="bar">
     <select class="b" id="preset"></select>
+    <select class="b" id="tpl" title="照目前畫布尺寸生成版型（會取代畫面上的物件，可 Ctrl+Z）"><option value="">版型…</option><option value="I">格式 I：兩框 × 2×2</option><option value="sample">簡報範例：Hero＋卡片</option></select>
     <div class="fld" style="width:104px"><i data-scrub="cw" data-step="10">寬</i><input id="cw"></div>
     <div class="fld" style="width:104px"><i data-scrub="ch" data-step="10">高</i><input id="ch"></div>
     <div class="fld" style="width:92px"><i data-scrub="grid" data-step="1">格</i><input id="cgrid"></div>
@@ -88,7 +94,7 @@
     <button class="b" id="tgDim" aria-pressed="true">標註</button>
   </div>
 
-  <div class="stage" style="position:relative"><canvas id="cv"></canvas><div class="zoom" id="zoom"></div><input id="dimEdit" style="display:none;position:absolute;width:64px;font:600 12px ui-monospace,monospace;text-align:center;border:1.5px solid #4CC3D9;border-radius:4px;padding:2px 3px;background:#0E1116;color:#F2F4F7;z-index:5"></div>
+  <div class="stage" style="position:relative"><canvas id="cv"></canvas><div class="sb" id="sbX"></div><div class="sb" id="sbY"></div><div class="zoom" id="zoom"></div><input id="dimEdit" style="display:none;position:absolute;width:64px;font:600 12px ui-monospace,monospace;text-align:center;border:1.5px solid #4CC3D9;border-radius:4px;padding:2px 3px;background:#0E1116;color:#F2F4F7;z-index:5"></div>
 
   <div class="specbar sec">
     <div class="lbl">規格文字（可改可貼，套用後重繪）</div>
@@ -98,7 +104,7 @@
       <button class="b" id="bRedo" disabled>重做</button>
       <button class="b" id="btnApply">套用文字</button>
       <button class="b" id="btnCopy">複製</button>
-      <button class="b" id="btnReset">回到範例</button>
+      <button class="b" id="btnReset" title="照目前裝置尺寸重排格式 I">回到預設</button>
       <button class="b" id="btnSave">下載 .spec.txt</button>
       <button class="b" id="btnPng">匯出 PNG（含規格）</button>
       <button class="b" id="btnSelf">載入工作臺目前版面</button>
@@ -139,12 +145,12 @@
       </div>
     </div>
     <div class="sec">
-      <div class="lbl">動作</div>
+      <div class="lbl">物件</div>
       <div class="rowb">
-        <button class="b sm" id="bDup" disabled>複製一份</button>
-        <button class="b sm" id="bFront" disabled>上移</button>
-        <button class="b sm" id="bBack" disabled>下移</button>
-        <button class="b sm" id="bDel" disabled>刪除</button>
+        <button class="b sm" id="bDup" disabled>複製物件</button>
+        <button class="b sm" id="bFront" disabled>圖層上移</button>
+        <button class="b sm" id="bBack" disabled>圖層下移</button>
+        <button class="b sm" id="bDel" disabled>刪除物件</button>
       </div>
     </div>
     <div class="sec">
@@ -180,7 +186,7 @@
     <div class="sec">
       <div class="lbl">選取 id</div>
       <div class="fld wide"><i>id</i><input id="pid" disabled></div>
-      <p class="note">Shift 點選加減；空白處拖曳框選；方向鍵微調（Shift ×10）；D 複製；Ctrl+Z 復原（Shift 重做）；Esc 取消。</p>
+      <p class="note">Shift 點選加減；空白處拖曳框選；方向鍵移 1px（Shift 一格）；D 複製；滾輪捲動、Ctrl+滾輪縮放；Ctrl+Z 復原（Shift 重做）；Esc 取消。</p>
     </div>
   </div>
 </div>
@@ -287,7 +293,7 @@ function wrap(text,maxW){
   return out;
 }
 function drawShape(s){
-  ctx.save(); ctx.globalAlpha=(s.op??100)/100;
+  ctx.save(); ctx.globalAlpha*=(s.op??100)/100;
   if (s.fill && s.fill!=='none'){
     ctx.fillStyle=s.fill;
     if (s.type==='ellipse'){ ctx.beginPath(); ctx.ellipse(s.x+s.w/2,s.y+s.h/2,s.w/2,s.h/2,0,0,Math.PI*2); ctx.fill(); }
@@ -320,6 +326,10 @@ function drawShape(s){
 function render(){
   ctx.save(); ctx.setTransform(1,0,0,1,0,0);
   ctx.fillStyle='#141619'; ctx.fillRect(0,0,cv.width,cv.height); ctx.restore();
+  // 畫布外的物件照畫、半透明（2026-09-23 Roy：「移到畫面外的物件看不見？」）——畫布內那段下面會蓋回實色
+  ctx.save(); ctx.globalAlpha=.35; for (const s of shapes) drawShape(s); ctx.restore();
+  ctx.save(); ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.lineWidth=1/S; ctx.setLineDash([4/S,3/S]);   // 深色物件在深色舞台上靠虛線框認
+  for (const s of shapes) ctx.strokeRect(s.x,s.y,s.w,s.h); ctx.restore();
   ctx.save(); ctx.beginPath(); ctx.rect(0,0,canvasDef.w,canvasDef.h); ctx.clip();
   ctx.fillStyle=canvasDef.bg; ctx.fillRect(0,0,canvasDef.w,canvasDef.h);
 
@@ -334,6 +344,12 @@ function render(){
   }
 
   for (const s of shapes) drawShape(s);
+  if (gridOn){   // 十字中心線：跟格線同一顆開關
+    const cx=canvasDef.w/2, cy=canvasDef.h/2;
+    ctx.save(); ctx.strokeStyle='rgba(76,195,217,.45)'; ctx.lineWidth=1/S; ctx.setLineDash([10/S,6/S]);
+    ctx.beginPath(); ctx.moveTo(cx,0); ctx.lineTo(cx,canvasDef.h); ctx.moveTo(0,cy); ctx.lineTo(canvasDef.w,cy); ctx.stroke();
+    ctx.restore();
+  }
   ctx.restore();   // 裁切結束——選取框、量尺、參考線可以畫出畫布外
 
   ctx.save();
@@ -485,7 +501,29 @@ dimEdit.addEventListener('keydown', e=>{
 });
 dimEdit.addEventListener('blur', commitDimEdit);
 
-function tick(){ if(dirty){render();dirty=false;} requestAnimationFrame(tick); }
+/* 捲軸（2026-09-23 Roy：「放大之後有辦法有卷軸嗎？」）：只是 ox/oy 的另一個把手，放大超出視窗那一軸才出現 */
+function updBars(){
+  for (const [id,vert] of [['sbX',0],['sbY',1]]){
+    const el=P(id), V=vert?cv.clientHeight:cv.clientWidth, C=(vert?canvasDef.h:canvasDef.w)*S, o=vert?oy:ox;
+    if (C<=V+1){ el.style.display='none'; continue; }
+    const len=Math.max(24,V*V/C), pos=Math.max(0,Math.min(V-len,-o/C*V));
+    el.style.display='block';
+    Object.assign(el.style, vert
+      ? {right:'3px',width:'7px',top:14+pos+'px',height:len+'px'}
+      : {bottom:'2px',height:'7px',left:14+pos+'px',width:len+'px'});
+  }
+}
+for (const [id,vert] of [['sbX',0],['sbY',1]]){
+  const el=P(id);
+  el.addEventListener('pointerdown', e=>{ e.preventDefault(); el.setPointerCapture(e.pointerId); el.classList.add('on');
+    const c0=vert?e.clientY:e.clientX, o0=vert?oy:ox;
+    const mv=ev=>{ const V=vert?cv.clientHeight:cv.clientWidth, C=(vert?canvasDef.h:canvasDef.w)*S;
+      const o=o0-((vert?ev.clientY:ev.clientX)-c0)*C/V;
+      if (vert) oy=o; else ox=o; clampPan(); ctx.setTransform(S*DPR,0,0,S*DPR,ox*DPR,oy*DPR); dirty=true; };
+    el.onpointermove=mv; el.onpointerup=el.onpointercancel=()=>{ el.onpointermove=null; el.classList.remove('on'); };
+  });
+}
+function tick(){ if(dirty){render();updBars();dirty=false;} requestAnimationFrame(tick); }
 
 function handles(s){
   const xs=[s.x,s.x+s.w/2,s.x+s.w], ys=[s.y,s.y+s.h/2,s.y+s.h], out=[];
@@ -672,7 +710,10 @@ function endDrag(){
 cv.addEventListener('pointerup', endDrag);
 cv.addEventListener('pointercancel', endDrag);
 cv.addEventListener('wheel', e=>{ e.preventDefault(); const r=cv.getBoundingClientRect();
-  zoomAt(e.clientX-r.left, e.clientY-r.top, e.deltaY<0 ? 1.15 : 1/1.15); }, {passive:false});
+  if (e.ctrlKey||e.metaKey){ zoomAt(e.clientX-r.left, e.clientY-r.top, e.deltaY<0 ? 1.15 : 1/1.15); return; }
+  if (Z===1) return;   // 滾輪捲動、Ctrl＋滾輪縮放（2026-09-23 Roy）；Shift＝橫捲
+  const dx=e.shiftKey?e.deltaY:e.deltaX, dy=e.shiftKey?0:e.deltaY;
+  ox-=dx; oy-=dy; clampPan(); ctx.setTransform(S*DPR,0,0,S*DPR,ox*DPR,oy*DPR); dirty=true; }, {passive:false});
 cv.addEventListener('auxclick', e=>{ if(e.button===1) e.preventDefault(); });
 P('zoom').style.cursor='pointer'; P('zoom').title='點一下回到整張（或按 0）';
 P('zoom').onclick=fitView;
@@ -687,7 +728,7 @@ addEventListener('keydown', e=>{
   if (e.key==='0'){ fitView(); return; }
   if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='a'){ e.preventDefault(); selection=[...shapes]; syncInsp(); dirty=true; return; }
   if (!selection.length) return;
-  const d = e.shiftKey ? (canvasDef.grid||1)*10 : (canvasDef.grid||1);
+  const d = e.shiftKey ? (canvasDef.grid||1) : 1;   // 方向鍵 1px；Shift 跳一格
   let used=true;
   if (e.key==='ArrowLeft') selection.forEach(s=>s.x-=d);
   else if (e.key==='ArrowRight') selection.forEach(s=>s.x+=d);
@@ -801,6 +842,16 @@ P('pcolorc').addEventListener('input',()=>{ applyAll('color',P('pcolorc').value)
 for (const el of document.querySelectorAll('[data-al]')) el.onclick=()=>applyAll('align',el.dataset.al);
 for (const el of document.querySelectorAll('[data-va]')) el.onclick=()=>applyAll('valign',el.dataset.va);
 
+/* 數字欄上下微調（2026-09-23 Roy）：▲▼ 鈕與 ↑↓ 鍵，一次一個 data-step，Shift ×10；走各欄原本的 change */
+for (const lab of document.querySelectorAll('.fld > [data-scrub]')){
+  const inp=lab.parentElement.querySelector('input'), step=+lab.dataset.step||1;
+  const bump=(dir,big)=>{ if(inp.disabled) return; inp.value=(parseFloat(inp.value)||0)+dir*step*(big?10:1); inp.dispatchEvent(new Event('change')); };
+  inp.addEventListener('keydown',e=>{ if(e.key==='ArrowUp'||e.key==='ArrowDown'){ e.preventDefault(); bump(e.key==='ArrowUp'?1:-1,e.shiftKey); } });
+  const sp=document.createElement('div'); sp.className='spin';
+  sp.innerHTML='<button tabindex="-1" title="＋（Shift ×10）">▲</button><button tabindex="-1" title="−（Shift ×10）">▼</button>';
+  sp.children[0].onclick=e=>bump(1,e.shiftKey); sp.children[1].onclick=e=>bump(-1,e.shiftKey);
+  lab.parentElement.appendChild(sp);
+}
 /* 標籤拖曳微調 */
 for (const el of document.querySelectorAll('[data-scrub]')){
   el.addEventListener('pointerdown', e=>{
@@ -926,7 +977,7 @@ P('btnFolder').onclick = ()=>{
   };
   document.body.appendChild(inp); inp.click();
 };
-P('btnReset').onclick=()=>{ P('spec').value=SAMPLE; P('btnApply').click(); };
+P('btnReset').onclick=()=>{ P('spec').value=formatI(canvasDef.w,canvasDef.h); P('btnApply').click(); };
 P('btnSave').onclick=()=>{
   const txt=P('spec').value;
   const m=txt.match(/^\/\/\s*(.+)$/m);
@@ -991,7 +1042,29 @@ function syncCanvas(){
   P('preset').value = m>=0?String(m):String(PRESETS.length-1);
 }
 PRESETS.forEach((p,i)=>{ const o=document.createElement('option'); o.value=i; o.textContent=p[1]?`${p[0]} ${p[1]}×${p[2]}`:p[0]; P('preset').appendChild(o); });
-P('preset').onchange=()=>{ const p=PRESETS[+P('preset').value]; if(p[1]){ canvasDef.w=p[1]; canvasDef.h=p[2]; syncCanvas(); layout(); pushSpec(); } };
+/* 版型（2026-09-23 Roy 在手機 390×844 手排出「格式 I」，要推廣到所有版面）：
+   8 的節奏——外距 8、框內距 8、格距 8；畫面沿長邊切兩個等大的框，每框 2×2。
+   換裝置不必重排：先選裝置，再選版型。 */
+function formatI(W,H,u=8){
+  const tall=H>=W, bw=tall?W-2*u:Math.floor((W-3*u)/2), bh=tall?Math.floor((H-3*u)/2):H-2*u;
+  const cw=Math.floor((bw-3*u)/2), ch=Math.floor((bh-3*u)/2);
+  const out=[`// ${PRESETS.find(p=>p[1]===W&&p[2]===H)?.[0]||'自訂'} ${W}x${H} 格式 I（兩框 × 2×2，節奏 ${u}）`,
+    `#canvas w=${W} h=${H} bg=${canvasDef.bg} grid=${canvasDef.grid}`];
+  let n=1;
+  for (let b=0;b<2;b++){
+    const bx=u+(tall?0:b*(bw+u)), by=u+(tall?b*(bh+u):0);
+    out.push(`rect id=box${b+1} x=${bx} y=${by} w=${bw} h=${bh} fill=#1A2029 r=16`);
+    for (let j=0;j<2;j++) for (let i=0;i<2;i++)
+      out.push(`rect id=img${n++} x=${bx+u+i*(cw+u)} y=${by+u+j*(ch+u)} w=${cw} h=${ch} fill=#2B3038 r=8`);
+  }
+  return out.join('\n');
+}
+P('tpl').onchange=()=>{ const t=P('tpl').value; P('tpl').value='';
+  if(t==='I'){ P('spec').value=formatI(canvasDef.w,canvasDef.h); P('btnApply').click(); }
+  else if(t==='sample'){ P('spec').value=SAMPLE; P('btnApply').click(); } };
+/* 換裝置直接照新尺寸生格式 I（2026-09-23 Roy：「這個變成手機版預設格式，推廣到所有版面」）——
+   換裝置不再只是搬畫布尺寸、留著舊物件飄在框外，先前那個問題才會冒出「畫布外物件半透明」的暫時解法。 */
+P('preset').onchange=()=>{ const p=PRESETS[+P('preset').value]; if(p[1]){ canvasDef.w=p[1]; canvasDef.h=p[2]; syncCanvas(); layout(); P('spec').value=formatI(canvasDef.w,canvasDef.h); P('btnApply').click(); } };
 for (const [id,key] of [['cw','w'],['ch','h'],['cgrid','grid']]){
   P(id).addEventListener('change',()=>{ const v=parseInt(P(id).value); if(isFinite(v)&&v>0){ canvasDef[key]=v; syncCanvas(); layout(); pushSpec(); } });
 }
@@ -1030,9 +1103,10 @@ for (const c of SWATCH){
   grip.addEventListener('pointerup', end); grip.addEventListener('pointercancel', end);
 }
 addEventListener('resize', layout);
-let boot=SAMPLE; try{ boot=localStorage.getItem('specboard.spec')||SAMPLE; }catch{}
+let saved=null; try{ saved=localStorage.getItem('specboard.spec'); }catch{}
+const boot = saved || formatI(2560,1440);   // 預設＝2K 桌機的格式 I（Roy 2026-09-23：「預設用桌機的格式 I」）；簡報範例移到版型選單
 P('spec').value=boot; P('btnApply').click(); markSaved(); tick();
-if(boot!==SAMPLE) P('msg').textContent='已還原上次的版面（自動存檔）。「回到範例」可清掉。';
+if(saved) P('msg').textContent='已還原上次的版面（自動存檔）。「回到預設」可清掉。';
 })();
 </script>
 </body>

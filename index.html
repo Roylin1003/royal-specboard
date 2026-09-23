@@ -1255,7 +1255,8 @@ for (const c of SWATCH){
 }
 addEventListener('resize', layout);
 let saved=null; try{ saved=localStorage.getItem('specboard.spec'); }catch{}
-const boot = saved || std2k();   // 預設＝2K 標準（Roy 2026-09-23：「這是 2K 預設版面！」）；簡報範例移到版型選單
+// 預設看開的人用什麼螢幕：窄螢幕＝手機格式 I，寬螢幕＝2K 標準（2026-09-23 Roy 用手機開，看到的卻是縮小的 2K）
+const boot = saved || (innerWidth < 768 ? formatI(390,844) : std2k());
 P('spec').value=boot; P('btnApply').click(); markSaved(); tick();
 if(saved) P('msg').textContent='已還原上次的版面（自動存檔）。「回到預設」可清掉。';
 })();

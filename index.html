@@ -23,6 +23,11 @@
   h1{margin:0;font-size:16px;font-weight:650}
   header em{font-style:normal;font-size:12px;color:var(--ink2)}
 
+  #help{max-width:440px;width:calc(100% - 32px);background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:10px;padding:18px 22px;font-size:14px;line-height:1.6}
+  #help::backdrop{background:rgba(0,0,0,.55)}
+  #help h2{font-size:14px;margin:0 0 6px;color:var(--acc)} #help h2+*{margin-top:0} #help ol{padding-left:20px;margin-bottom:14px}
+  #help dl{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin:0 0 12px} #help dt{font-family:ui-monospace,monospace;color:var(--ink)} #help dd{margin:0;color:var(--ink2)}
+  #help p{margin:0;color:var(--ink2)} #help a{color:var(--acc)} #help code{color:var(--ink)}
   .bar{grid-area:bar;padding:8px 14px;border-bottom:1px solid var(--line);display:flex;gap:7px;flex-wrap:wrap;align-items:center}
   .stage{grid-area:stage;background:#0C1526;position:relative;display:flex;align-items:center;justify-content:center;padding:14px;min-height:0}
   canvas{display:block;touch-action:none;max-width:100%}
@@ -82,7 +87,28 @@
   <header>
     <h1>Royal SpecBoard <span style="font-size:12px;color:var(--ink2);font-weight:400">設計師規格工作臺</span><span id="unsaved" title="下載後有改動" style="display:none;color:#F2B544;margin-left:6px">●</span></h1>
     <em>畫面只是確認用。要交出去的是下面那段文字。</em>
+    <button class="b sm" id="bHelp" title="速查（?）" style="margin-left:auto">？</button>
   </header>
+  <!-- 速查（2026-09-23 Roy：「簡練！優雅！」）：原生 dialog，Esc 或點外面就關；完整版在 README -->
+  <dialog id="help">
+    <h2>三分鐘上手</h2>
+    <ol><li>左上角選裝置。</li><li>按「磁磚」，排好定位點。</li><li>拖方塊，或點尺寸數字改它。</li><li>按「複製」，把規格文字交給工程師或 AI。</li></ol>
+    <h2>快捷鍵</h2>
+    <dl>
+      <dt>方向鍵</dt><dd>移 1px，Shift 一格</dd>
+      <dt>[ ]</dt><dd>寬 −＋，Shift 調高</dd>
+      <dt>D ／ Alt＋拖曳</dt><dd>複製</dd>
+      <dt>Ctrl＋C X V</dt><dd>複製剪下貼上（規格文字）</dd>
+      <dt>Ctrl＋] [</dt><dd>圖層上下</dd>
+      <dt>Alt＋A D W S</dt><dd>靠左右上下</dd>
+      <dt>I</dt><dd>滴管</dd>
+      <dt>Ctrl＋滾輪</dt><dd>縮放；滾輪捲動</dd>
+      <dt>0 ／ Shift＋2</dt><dd>整張 ／ 縮放到選取</dd>
+      <dt>F</dt><dd>簡報模式</dd>
+      <dt>Ctrl＋Z</dt><dd>復原，Shift 重做</dd>
+    </dl>
+    <p>數字欄可打 <code>+16</code>、<code>*2</code>。完整說明：<a href="https://github.com/Roylin1003/royal-specboard#readme" target="_blank" rel="noopener">README</a></p>
+  </dialog>
 
   <div class="bar">
     <select class="b" id="preset"></select>
@@ -751,6 +777,7 @@ addEventListener('keydown', e=>{
   if (e.key===' '){ e.preventDefault(); if(!spaceDown){ spaceDown=true; if(!drag&&!marquee) cv.style.cursor='grab'; } return; }
   if (e.key==='0'){ fitView(); return; }
   if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='a'){ e.preventDefault(); selection=[...shapes]; syncInsp(); dirty=true; return; }
+  if (e.key==='?'){ P('help').showModal(); return; }
   if (e.key==='f'||e.key==='F'){ document.body.classList.toggle('present'); setTimeout(layout,0); return; }   // 簡報模式
   if (e.shiftKey && e.code==='Digit1'){ fitView(); return; }                                              // Figma：Shift+1 整張
   if (e.shiftKey && e.code==='Digit2'){ zoomToSel(); return; }                                            // Figma：Shift+2 縮放到選取
@@ -1181,6 +1208,8 @@ function applyTiles(){
   const {text,info}=tiles(canvasDef.w,canvasDef.h,c); P('spec').value=text; P('btnApply').click(); P('msg').textContent='磁磚 '+info;
 }
 P('bTiles').onclick=applyTiles;
+P('bHelp').onclick=()=>P('help').showModal();
+P('help').addEventListener('click',e=>{ if(e.target===P('help')) P('help').close(); });   // 點對話框外（backdrop）就關
 P('tilec').addEventListener('change',()=>{ if(/^\/\/ 磁磚/.test(P('spec').value)) applyTiles(); });   // 已在磁磚模式才即時重排，不會誤洗掉別的版面
 // 各裝置的預設版面：2K 用「2K 標準」（Roy：「這是 2K 預設版面！」），其餘用格式 I
 const defaultSpec = (w,h) => (w===2560 && h===1440) ? std2k() : formatI(w,h);

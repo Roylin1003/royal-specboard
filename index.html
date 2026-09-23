@@ -28,6 +28,7 @@
   #help h2{font-size:14px;margin:0 0 6px;color:var(--acc)} #help h2+*{margin-top:0} #help ol{padding-left:20px;margin-bottom:14px}
   #help dl{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;margin:0 0 12px} #help dt{font-family:ui-monospace,monospace;color:var(--ink)} #help dd{margin:0;color:var(--ink2)}
   #help p{margin:0;color:var(--ink2)} #help a{color:var(--acc)} #help code{color:var(--ink)}
+  .gsep{width:1px;align-self:stretch;background:var(--line);margin:0 4px}   /* 按鈕分組的細線 */
   .bar{grid-area:bar;padding:8px 14px;border-bottom:1px solid var(--line);display:flex;gap:7px;flex-wrap:wrap;align-items:center}
   .stage{grid-area:stage;background:#0C1526;position:relative;display:flex;align-items:center;justify-content:center;padding:14px;min-height:0}
   canvas{display:block;touch-action:none;max-width:100%}
@@ -51,6 +52,7 @@
   .b{border:1px solid var(--line);background:var(--panel2);color:var(--ink);font-size:12.5px;padding:6px 10px;border-radius:3px;cursor:pointer}
   .b:hover{background:#343a44}
   .b[aria-pressed="true"]{background:var(--ink);color:#1b1e23;border-color:var(--ink);font-weight:600}
+  .b[aria-pressed="true"]::after{content:" ✓"}   /* 開關開著就打勾，不靠底色猜 */
   .b:disabled{opacity:.35;cursor:default}
   .b.sm{padding:5px 8px;font-size:11.5px}
   /* 元件鈕緊湊（寬度夠時自然一行；nowrap 會在窄視窗生橫捲軸，撤） */
@@ -92,7 +94,7 @@
   <!-- 速查（2026-09-23 Roy：「簡練！優雅！」）：原生 dialog，Esc 或點外面就關；完整版在 README -->
   <dialog id="help">
     <h2>三分鐘上手</h2>
-    <ol><li>左上角選裝置。</li><li>按「磁磚」，排好定位點。</li><li>拖方塊，或點尺寸數字改它。</li><li>按「複製」，把規格文字交給工程師或 AI。</li></ol>
+    <ol><li>左上角選裝置。</li><li>按「排磁磚」，排好定位點。</li><li>拖方塊，或點尺寸數字改它。</li><li>按「複製規格」，把規格文字交給工程師或 AI。</li></ol>
     <h2>快捷鍵</h2>
     <dl>
       <dt>方向鍵</dt><dd>移 1px，Shift 一格</dd>
@@ -114,14 +116,14 @@
     <select class="b" id="preset"></select>
     <select class="b" id="tpl" title="照目前畫布尺寸生成版型（會取代畫面上的物件，可 Ctrl+Z）"><option value="">版型…</option><option value="I">格式 I：兩框 × 2×2</option><option value="std2k">2K 標準：9×5 環狀棋盤</option><option value="sample">簡報範例：Hero＋卡片</option></select>
     <div class="fld" style="width:92px" title="磁磚欄數：改了會即時重排（在磁磚模式時）"><i data-scrub="tilec" data-step="1">欄</i><input id="tilec" placeholder="自動"></div>
-    <button class="b" id="bTiles" title="照目前裝置排磁磚矩陣（定位點）。橫式：間距約磚的 1/10；直式：寬決定正方形，最後一列吃剩下的高">磁磚</button>
+    <button class="b" id="bTiles" title="照目前裝置排磁磚矩陣（定位點），會取代畫面上的物件（可 Ctrl+Z）。橫式：間距約磚的 1/10；直式：寬決定正方形，最後一列吃剩下的高">🔲 排磁磚</button>
     <div class="fld" style="width:104px"><i data-scrub="cw" data-step="10">寬</i><input id="cw"></div>
     <div class="fld" style="width:104px"><i data-scrub="ch" data-step="10">高</i><input id="ch"></div>
-    <div class="fld" style="width:92px"><i data-scrub="grid" data-step="1">格</i><input id="cgrid"></div>
+    <div class="fld" style="width:92px"><i data-scrub="grid" data-step="1" title="格線間距（px）">網格</i><input id="cgrid"></div>
     <div class="color"><input type="color" id="cbg"><span style="font-size:11.5px;color:var(--ink2)">底色</span></div>
-    <button class="b" id="tgGuide" aria-pressed="true">吸附</button>
-    <button class="b" id="tgGrid" aria-pressed="true">格線</button>
-    <button class="b" id="tgDim" aria-pressed="true">標註</button>
+    <button class="b" id="tgGuide" aria-pressed="true" title="拖曳時吸附格線與其他物件（開關）">🧲 吸附</button>
+    <button class="b" id="tgGrid" aria-pressed="true" title="顯示格線與中心十字（開關）">#️⃣ 格線</button>
+    <button class="b" id="tgDim" aria-pressed="true" title="顯示尺寸與間距量尺，數字可點來改（開關）">📏 量尺</button>
   </div>
 
   <div class="stage" style="position:relative"><canvas id="cv"></canvas><div class="sb" id="sbX"></div><div class="sb" id="sbY"></div><div class="zoom" id="zoom"></div><input id="dimEdit" style="display:none;position:absolute;width:64px;font:600 12px ui-monospace,monospace;text-align:center;border:1.5px solid #4CC3D9;border-radius:4px;padding:2px 3px;background:#0E1116;color:#F2F4F7;z-index:5"></div>
@@ -130,15 +132,18 @@
     <div class="lbl">規格文字（可改可貼，套用後重繪）</div>
     <textarea id="spec" spellcheck="false"></textarea>
     <div class="rowb" style="margin-top:8px">
-      <button class="b" id="bUndo" disabled>復原</button>
-      <button class="b" id="bRedo" disabled>重做</button>
-      <button class="b" id="btnApply">套用文字</button>
-      <button class="b" id="btnCopy">複製</button>
-      <button class="b" id="btnReset" title="照目前裝置尺寸重排格式 I">回到預設</button>
-      <button class="b" id="btnSave">下載 .spec.txt</button>
-      <button class="b" id="btnPng">匯出 PNG（含規格）</button>
-      <button class="b" id="btnSelf">載入工作臺目前版面</button>
-      <button class="b" id="btnFolder">載入規格檔</button>
+      <button class="b" id="bUndo" disabled>↩️ 復原</button>
+      <button class="b" id="bRedo" disabled>↪️ 重做</button>
+      <span class="gsep"></span>
+      <button class="b" id="btnApply" title="把上面的規格文字畫到畫布上">🔄 套用文字</button>
+      <button class="b" id="btnCopy" title="把整段規格文字複製到剪貼簿（Ctrl+C 則是複製選取的物件）">📋 複製規格</button>
+      <span class="gsep"></span>
+      <button class="b" id="btnFolder" title="開啟 .spec.txt 或含規格的 PNG">📂 開啟檔案</button>
+      <button class="b" id="btnSave">💾 下載 .spec.txt</button>
+      <button class="b" id="btnPng">🖼️ 匯出 PNG（含規格）</button>
+      <span class="gsep"></span>
+      <button class="b" id="btnReset" title="照目前裝置重排預設版面（2K＝2K 標準，其他＝格式 I）">🏠 回到預設</button>
+      <button class="b" id="btnSelf" title="把 SpecBoard 自己的介面抄成規格（開發工作臺用，需要本機伺服器）">📸 擷取本工具介面</button>
       <span class="note" id="msg" style="margin:0">以 // 開頭的行是註解，會被保留。</span>
     </div>
   </div>
@@ -166,21 +171,22 @@
         <div class="color"><input type="color" id="pcolorc" disabled><div class="fld" style="flex:1"><i>色</i><input id="pcolor" disabled></div></div>
       </div>
       <div class="rowb" style="margin-top:6px">
+        <span class="note" style="margin:0 2px 0 0;align-self:center">文字位置</span>
         <button class="b sm" data-al="left" disabled>靠左</button>
         <button class="b sm" data-al="center" disabled>置中</button>
         <button class="b sm" data-al="right" disabled>靠右</button>
-        <button class="b sm" data-va="top" disabled>上</button>
+        <button class="b sm" data-va="top" disabled>頂</button>
         <button class="b sm" data-va="middle" disabled>中</button>
-        <button class="b sm" data-va="bottom" disabled>下</button>
+        <button class="b sm" data-va="bottom" disabled>底</button>
       </div>
     </div>
     <div class="sec">
       <div class="lbl">物件</div>
       <div class="rowb">
-        <button class="b sm" id="bDup" disabled>複製物件</button>
-        <button class="b sm" id="bFront" disabled>圖層上移</button>
-        <button class="b sm" id="bBack" disabled>圖層下移</button>
-        <button class="b sm" id="bDel" disabled>刪除物件</button>
+        <button class="b sm" id="bDup" disabled>📑 複製物件</button>
+        <button class="b sm" id="bFront" disabled>🔼 圖層上移</button>
+        <button class="b sm" id="bBack" disabled>🔽 圖層下移</button>
+        <button class="b sm" id="bDel" disabled>🗑️ 刪除物件</button>
       </div>
     </div>
     <div class="sec">
@@ -191,18 +197,18 @@
         <div class="fld"><i data-scrub="w" data-step="1">寬</i><input id="pw" disabled></div>
         <div class="fld"><i data-scrub="h" data-step="1">高</i><input id="ph" disabled></div>
         <div class="fld"><i data-scrub="r" data-step="1">圓角</i><input id="pr" disabled></div>
-        <div class="fld"><i data-scrub="op" data-step="5">透明</i><input id="pop" disabled></div>
+        <div class="fld"><i data-scrub="op" data-step="5" title="100＝完全不透明，0＝看不見">不透明</i><input id="pop" disabled></div>
       </div>
     </div>
     <div class="sec">
       <div class="lbl">對齊與分布　<span class="count" id="cnt">未選取</span></div>
       <div class="rowb">
-        <button class="b sm" data-align="l" disabled>靠左</button>
-        <button class="b sm" data-align="hc" disabled>水平置中</button>
-        <button class="b sm" data-align="r" disabled>靠右</button>
-        <button class="b sm" data-align="t" disabled>靠上</button>
-        <button class="b sm" data-align="vc" disabled>垂直置中</button>
-        <button class="b sm" data-align="bt" disabled>靠下</button>
+        <button class="b sm" data-align="l" disabled>⬅️ 靠左</button>
+        <button class="b sm" data-align="hc" disabled>↔️ 水平置中</button>
+        <button class="b sm" data-align="r" disabled>➡️ 靠右</button>
+        <button class="b sm" data-align="t" disabled>⬆️ 靠上</button>
+        <button class="b sm" data-align="vc" disabled>↕️ 垂直置中</button>
+        <button class="b sm" data-align="bt" disabled>⬇️ 靠下</button>
       </div>
       <div class="rowb" style="margin-top:6px">
         <button class="b sm" data-dist="h" disabled>水平等距</button>
@@ -216,7 +222,7 @@
     <div class="sec">
       <div class="lbl">選取 id</div>
       <div class="fld wide"><i>id</i><input id="pid" disabled></div>
-      <p class="note">Shift 點選加減；空白處拖曳框選；方向鍵移 1px（Shift 一格）；D 複製、Alt＋拖曳拖出複製；Ctrl+C／X／V 複製剪下貼上（規格文字）；Ctrl+] [ 圖層上下；Alt+A D W S H V 對齊；[ ] 調寬、Shift+[ ] 調高；I 滴管；滾輪捲動、Ctrl+滾輪縮放、Shift+1 整張、Shift+2 縮放到選取；F 簡報模式；Ctrl+Z 復原（Shift 重做）；Esc 取消。數字欄可打算式：+16、*2、358/2。</p>
+      <p class="note">快捷鍵按 <b>?</b> 或右上角「？」。</p>
     </div>
   </div>
 </div>
@@ -1045,7 +1051,7 @@ P('btnCopy').onclick=async()=>{
   catch{ P('spec').select(); P('msg').textContent='無法自動複製，已全選，請手動複製。'; }
 };
 /* 匯入器 v1（Roy 定規格：兩顆）──
-   「載入工作臺目前版面」＝自我擷取（與 console 版共用 snapshot-capture.js，單一真相）；
+   「擷取本工具介面」（原「載入工作臺目前版面」）＝自我擷取（與 console 版共用 snapshot-capture.js，單一真相）；
    「載入指定資料夾內容」＝瀏覽資料夾（http 目錄列表）選檔載入。兩者皆需 http。 */
 P('btnSelf').onclick = async ()=>{
   if (!window.snapshotCapture){
@@ -1226,7 +1232,7 @@ P('tgDim').onclick=()=>{ dimOn=!dimOn; P('tgDim').setAttribute('aria-pressed',St
 
 const pal=P('palette');
 for (const name of Object.keys(DEFAULTS)){
-  const b=document.createElement('button'); b.className='b sm'; b.textContent=name; b.onclick=()=>add(name); pal.appendChild(b);
+  const b=document.createElement('button'); b.className='b sm'; b.textContent=({容器:'📦 ',按鈕:'🔘 ',標題:'🔠 ',內文:'📝 ',導覽列:'🧭 ',圖片框:'🖼️ ',圓形:'⚪ ',分隔線:'➖ '}[name]||'')+name; b.onclick=()=>add(name); pal.appendChild(b);
 }
 const sw=P('swFill');
 for (const c of SWATCH){

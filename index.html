@@ -17,6 +17,8 @@
   .app{height:100vh;display:grid;overflow:hidden;background:var(--panel);
     grid-template:"hd hd" auto "bar insp" auto "stage insp" 1fr "spec insp" auto / 1fr var(--inspw,380px)}
   @media (max-width:860px){.app{height:auto;grid-template:"hd" auto "bar" auto "stage" auto "insp" auto "spec" auto / 1fr}}
+  /* 簡報模式（F，借 PowerPoint 的投影片放映）：只留畫布，給案主看／自己看全貌 */
+  body.present .app{grid-template:"stage" 1fr / 1fr} body.present header,body.present .bar,body.present .specbar,body.present .insp{display:none}
   header{grid-area:hd;padding:10px 16px;border-bottom:1px solid var(--line);display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
   h1{margin:0;font-size:16px;font-weight:650}
   header em{font-style:normal;font-size:12px;color:var(--ink2)}
@@ -186,7 +188,7 @@
     <div class="sec">
       <div class="lbl">選取 id</div>
       <div class="fld wide"><i>id</i><input id="pid" disabled></div>
-      <p class="note">Shift 點選加減；空白處拖曳框選；方向鍵移 1px（Shift 一格）；D 複製；滾輪捲動、Ctrl+滾輪縮放；Ctrl+Z 復原（Shift 重做）；Esc 取消。</p>
+      <p class="note">Shift 點選加減；空白處拖曳框選；方向鍵移 1px（Shift 一格）；D 複製、Alt＋拖曳拖出複製；Ctrl+C／X／V 複製剪下貼上（規格文字）；Ctrl+] [ 圖層上下；Alt+A D W S H V 對齊；[ ] 調寬、Shift+[ ] 調高；I 滴管；滾輪捲動、Ctrl+滾輪縮放、Shift+1 整張、Shift+2 縮放到選取；F 簡報模式；Ctrl+Z 復原（Shift 重做）；Esc 取消。數字欄可打算式：+16、*2、358/2。</p>
     </div>
   </div>
 </div>
@@ -686,6 +688,7 @@ cv.addEventListener('pointerdown', e=>{
     } else if (!selection.includes(hit)) selection=[hit];
     if (selection.length){
       cv.setPointerCapture(e.pointerId);
+      if (e.altKey){ const cp=zSel().map(s=>({...s,id:s.id.replace(/\d*$/,'')+(counter++)})); shapes.push(...cp); selection=cp; }   // Alt＋拖曳＝拖出一份複製（Figma）
       drag={mode:'move', ox:p.x, oy:p.y, start:selection.map(s=>({s,x:s.x,y:s.y}))};
     }
   } else {
@@ -746,7 +749,19 @@ addEventListener('keydown', e=>{
   if (e.key===' '){ e.preventDefault(); if(!spaceDown){ spaceDown=true; if(!drag&&!marquee) cv.style.cursor='grab'; } return; }
   if (e.key==='0'){ fitView(); return; }
   if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='a'){ e.preventDefault(); selection=[...shapes]; syncInsp(); dirty=true; return; }
+  if (e.key==='f'||e.key==='F'){ document.body.classList.toggle('present'); setTimeout(layout,0); return; }   // 簡報模式
+  if (e.shiftKey && e.code==='Digit1'){ fitView(); return; }                                              // Figma：Shift+1 整張
+  if (e.shiftKey && e.code==='Digit2'){ zoomToSel(); return; }                                            // Figma：Shift+2 縮放到選取
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='v'){ e.preventDefault(); pasteShapes(); return; }
   if (!selection.length) return;
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='c'){ e.preventDefault(); copyShapes(false); return; }
+  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='x'){ e.preventDefault(); copyShapes(true); return; }
+  if ((e.metaKey||e.ctrlKey) && (e.key===']'||e.key==='[')){ e.preventDefault(); P(e.key===']'?'bFront':'bBack').click(); syncInsp(); return; }   // Figma／PPT：Ctrl+] 上一層
+  if (e.altKey){ const k={a:'l',d:'r',w:'t',s:'bt',h:'hc',v:'vc'}[e.key.toLowerCase()]; if(k){ e.preventDefault(); align(k); return; } }   // Figma：Alt+A/D/W/S/H/V 對齊
+  if (e.key==='i'||e.key==='I'){ eyedrop(); return; }                                                     // 滴管
+  if (e.key==='['||e.key===']'||e.key==='{'||e.key==='}'){   // Photoshop 筆刷大小的手感：[ ] 調寬、Shift 調高，一次一格——給 TourBox 旋鈕
+    const g=canvasDef.grid||1, dir=(e.key===']'||e.key==='}')?1:-1, k=e.shiftKey?'h':'w';
+    selection.forEach(s=>s[k]=Math.max(1,s[k]+dir*g)); e.preventDefault(); syncInsp(); pushSpec(); dirty=true; return; }
   const d = e.shiftKey ? (canvasDef.grid||1) : 1;   // 方向鍵 1px；Shift 跳一格
   let used=true;
   if (e.key==='ArrowLeft') selection.forEach(s=>s.x-=d);
@@ -758,6 +773,43 @@ addEventListener('keydown', e=>{
   else used=false;
   if (used){ e.preventDefault(); syncInsp(); pushSpec(); dirty=true; }
 });
+
+/* ── 借來的功能（2026-09-23 Roy：「參考各種繪圖軟體、簡報軟體，加一些厲害的功能」＋ TourBox）── */
+function zoomToSel(){
+  const b=selection.length?bbox(selection):null; if(!b){ fitView(); return; }
+  const W=cv.clientWidth, H=cv.clientHeight;
+  Z=Math.max(1, Math.min(Math.max(1/fitS,2), Math.min(W/b.w, H/b.h)*0.8/fitS)); S=fitS*Z;
+  ox=W/2-(b.x+b.w/2)*S; oy=H/2-(b.y+b.h/2)*S; clampPan(); ctx.setTransform(S*DPR,0,0,S*DPR,ox*DPR,oy*DPR);
+  P('zoom').textContent=`${canvasDef.w}×${canvasDef.h} · ${Math.round(S*100)}%　⤢ 回整張`; dirty=true;
+}
+/* 複製貼上走規格文字：剪貼簿裡就是 DSL，可以貼到別的分頁、別的工作臺、甚至貼給 AI 看 */
+async function copyShapes(cut){
+  const lines=serialize().split('\n').filter(l=>/^(rect|ellipse) /.test(l));
+  const ids=new Set(zSel().map(s=>s.id)), txt=lines.filter(l=>ids.has(/ id=(\S+)/.exec(l)[1])).join('\n');
+  try{ await navigator.clipboard.writeText(txt); P('msg').textContent=`已複製 ${ids.size} 個物件（規格文字）。`; }catch{ P('msg').textContent='剪貼簿被瀏覽器擋下。'; return; }
+  if (cut) del();
+}
+async function pasteShapes(){
+  let txt=''; try{ txt=await navigator.clipboard.readText(); }catch{ P('msg').textContent='剪貼簿被瀏覽器擋下。'; return; }
+  const {ns}=parse(txt); if(!ns.length){ P('msg').textContent='剪貼簿裡沒有物件規格。'; return; }
+  const g=canvasDef.grid||1, have=new Set(shapes.map(s=>s.id));
+  for (const s of ns){ if(have.has(s.id)) s.id=s.id.replace(/\d*$/,'')+(counter++); s.x+=g*4; s.y+=g*4; }
+  shapes.push(...ns); selection=ns; syncInsp(); pushSpec(); dirty=true;
+}
+async function eyedrop(){   // Chrome／Edge 原生滴管，可吸螢幕上任何顏色（包括別的視窗）
+  if (!window.EyeDropper){ P('msg').textContent='這個瀏覽器沒有滴管（請用 Chrome／Edge）。'; return; }
+  try{ const {sRGBHex}=await new EyeDropper().open(); if(selection.length) applyAll('fill',sRGBHex); P('pfill').value=sRGBHex; P('msg').textContent=`吸到 ${sRGBHex}`; }catch{}
+}
+/* 數字欄可以打算式（Figma）：「+16」「-8」「*2」「/3」接在原值後面算，「358/2」直接算 */
+function calcField(el){
+  const raw=el.value.trim(), cur=parseFloat(el.dataset.prev);
+  const v=evalNum(/^[+\-*/]/.test(raw) && isFinite(cur) ? cur+raw : raw, null);
+  if (v!==null) el.value=Math.round(v*100)/100;
+}
+for (const el of [...document.querySelectorAll('.fld > [data-scrub]')].map(l=>l.parentElement.querySelector('input'))){   // 只給數字欄，文字／hex 欄不算
+  el.addEventListener('focus',()=>{ el.dataset.prev=el.value; });
+  el.addEventListener('change',()=>calcField(el),true);   // capture：先把算式算成數字，各欄原本的 change 再吃
+}
 
 /* ── 對齊與分布 ── */
 function targetBox(){

@@ -86,7 +86,7 @@
 
   <div class="bar">
     <select class="b" id="preset"></select>
-    <select class="b" id="tpl" title="照目前畫布尺寸生成版型（會取代畫面上的物件，可 Ctrl+Z）"><option value="">版型…</option><option value="I">格式 I：兩框 × 2×2</option><option value="sample">簡報範例：Hero＋卡片</option></select>
+    <select class="b" id="tpl" title="照目前畫布尺寸生成版型（會取代畫面上的物件，可 Ctrl+Z）"><option value="">版型…</option><option value="I">格式 I：兩框 × 2×2</option><option value="std2k">2K 標準：9×5 環狀棋盤</option><option value="sample">簡報範例：Hero＋卡片</option></select>
     <div class="fld" style="width:104px"><i data-scrub="cw" data-step="10">寬</i><input id="cw"></div>
     <div class="fld" style="width:104px"><i data-scrub="ch" data-step="10">高</i><input id="ch"></div>
     <div class="fld" style="width:92px"><i data-scrub="grid" data-step="1">格</i><input id="cgrid"></div>
@@ -1049,7 +1049,7 @@ P('btnFolder').onclick = ()=>{
   };
   document.body.appendChild(inp); inp.click();
 };
-P('btnReset').onclick=()=>{ P('spec').value=formatI(canvasDef.w,canvasDef.h); P('btnApply').click(); };
+P('btnReset').onclick=()=>{ P('spec').value=defaultSpec(canvasDef.w,canvasDef.h); P('btnApply').click(); };
 P('btnSave').onclick=()=>{
   const txt=P('spec').value;
   const m=txt.match(/^\/\/\s*(.+)$/m);
@@ -1133,10 +1133,28 @@ function formatI(W,H,u=8){
 }
 P('tpl').onchange=()=>{ const t=P('tpl').value; P('tpl').value='';
   if(t==='I'){ P('spec').value=formatI(canvasDef.w,canvasDef.h); P('btnApply').click(); }
+  else if(t==='std2k'){ P('spec').value=std2k(); P('btnApply').click(); }
   else if(t==='sample'){ P('spec').value=SAMPLE; P('btnApply').click(); } };
+/* 2K 標準（2026-09-23 Roy 在格式 I 上手排出來：「2K 標準！」）：9 欄 × 5 列、每格 256，外距 24、欄距 26、列距 28，
+   剛好填滿 2560×1440。外圈是一條環（角白、上粉、下綠、左右黃），內部 7×3 藍。底下保留格式 I 的兩框。 */
+function std2k(){
+  const out=formatI(2560,1440).split('\n').map(l=>l.startsWith('//')?'// 2K 標準 2560x1440：9×5 環狀棋盤（格 256，外距 24，欄距 26，列距 28），底下是格式 I':l);
+  const C=9, R=5, n={};
+  for (let j=0;j<R;j++) for (let i=0;i<C;i++){
+    const edge=j===0?'top':j===R-1?'bottom':i===0?'left':i===C-1?'right':'c';
+    const corner=(i===0||i===C-1)&&(j===0||j===R-1);
+    const kind=corner?'corner':edge;
+    const fill={corner:'#F2F4F7',top:'#E0326F',bottom:'#8FBF73',left:'#F2B544',right:'#F2B544',c:'#4CC3D9'}[kind];
+    n[kind]=(n[kind]||0)+1;
+    out.push(`rect id=${kind}${n[kind]} x=${24+i*282} y=${24+j*284} w=256 h=256 fill=${fill} r=8`);
+  }
+  return out.join('\n');
+}
+// 各裝置的預設版面：2K 用「2K 標準」（Roy：「這是 2K 預設版面！」），其餘用格式 I
+const defaultSpec = (w,h) => (w===2560 && h===1440) ? std2k() : formatI(w,h);
 /* 換裝置直接照新尺寸生格式 I（2026-09-23 Roy：「這個變成手機版預設格式，推廣到所有版面」）——
    換裝置不再只是搬畫布尺寸、留著舊物件飄在框外，先前那個問題才會冒出「畫布外物件半透明」的暫時解法。 */
-P('preset').onchange=()=>{ const p=PRESETS[+P('preset').value]; if(p[1]){ canvasDef.w=p[1]; canvasDef.h=p[2]; syncCanvas(); layout(); P('spec').value=formatI(canvasDef.w,canvasDef.h); P('btnApply').click(); } };
+P('preset').onchange=()=>{ const p=PRESETS[+P('preset').value]; if(p[1]){ canvasDef.w=p[1]; canvasDef.h=p[2]; syncCanvas(); layout(); P('spec').value=defaultSpec(canvasDef.w,canvasDef.h); P('btnApply').click(); } };
 for (const [id,key] of [['cw','w'],['ch','h'],['cgrid','grid']]){
   P(id).addEventListener('change',()=>{ const v=parseInt(P(id).value); if(isFinite(v)&&v>0){ canvasDef[key]=v; syncCanvas(); layout(); pushSpec(); } });
 }
@@ -1176,7 +1194,7 @@ for (const c of SWATCH){
 }
 addEventListener('resize', layout);
 let saved=null; try{ saved=localStorage.getItem('specboard.spec'); }catch{}
-const boot = saved || formatI(2560,1440);   // 預設＝2K 桌機的格式 I（Roy 2026-09-23：「預設用桌機的格式 I」）；簡報範例移到版型選單
+const boot = saved || std2k();   // 預設＝2K 標準（Roy 2026-09-23：「這是 2K 預設版面！」）；簡報範例移到版型選單
 P('spec').value=boot; P('btnApply').click(); markSaved(); tick();
 if(saved) P('msg').textContent='已還原上次的版面（自動存檔）。「回到預設」可清掉。';
 })();

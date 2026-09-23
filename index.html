@@ -87,6 +87,8 @@
   <div class="bar">
     <select class="b" id="preset"></select>
     <select class="b" id="tpl" title="照目前畫布尺寸生成版型（會取代畫面上的物件，可 Ctrl+Z）"><option value="">版型…</option><option value="I">格式 I：兩框 × 2×2</option><option value="std2k">2K 標準：9×5 環狀棋盤</option><option value="sample">簡報範例：Hero＋卡片</option></select>
+    <div class="fld" style="width:92px" title="磁磚欄數：改了會即時重排（在磁磚模式時）"><i data-scrub="tilec" data-step="1">欄</i><input id="tilec" placeholder="自動"></div>
+    <button class="b" id="bTiles" title="照目前裝置排磁磚矩陣（定位點）。橫式：間距約磚的 1/10；直式：寬決定正方形，最後一列吃剩下的高">磁磚</button>
     <div class="fld" style="width:104px"><i data-scrub="cw" data-step="10">寬</i><input id="cw"></div>
     <div class="fld" style="width:104px"><i data-scrub="ch" data-step="10">高</i><input id="ch"></div>
     <div class="fld" style="width:92px"><i data-scrub="grid" data-step="1">格</i><input id="cgrid"></div>
@@ -928,7 +930,7 @@ for (const el of document.querySelectorAll('[data-scrub]')){
   el.addEventListener('pointerdown', e=>{
     const key=el.dataset.scrub, step=+el.dataset.step;
     const isCanvas=['cw','ch','grid'].includes(key);
-    if (key==='gap'){ /* 一般欄位 */ }
+    if (key==='gap'||key==='tilec'){ /* 一般欄位 */ }
     else if (!isCanvas && !selection.length) return;
     el.setPointerCapture(e.pointerId); let last=e.clientX;
     const mv=ev=>{
@@ -938,6 +940,8 @@ for (const el of document.querySelectorAll('[data-scrub]')){
         canvasDef[m]=Math.max(m==='grid'?1:100,canvasDef[m]+d); syncCanvas(); layout();
       } else if (key==='gap'){
         P('gapv').value=Math.max(0,(parseFloat(P('gapv').value)||0)+d); return;
+      } else if (key==='tilec'){
+        P('tilec').value=Math.max(1,(parseFloat(P('tilec').value)||tileDefault())+d); P('tilec').dispatchEvent(new Event('change')); return;
       } else {
         selection.forEach(s=>s[key]=Math.max((key==='w'||key==='h')?1:0,(s[key]??0)+d));
         syncInsp();
@@ -1150,6 +1154,34 @@ function std2k(){
   }
   return out.join('\n');
 }
+/* 磁磚矩陣（2026-09-23 Roy：「這些磁磚以後就是定位點」）。兩條規則，照螢幕方向自動選：
+   橫式＝2K 標準的規則：外距 24、間距約磚的 1/10，列數照高度取最接近的整數，零頭攤進外距（9 欄在 2K 正好排回 2K 標準）；
+   直式＝Roy 的手機解法：間距 8、寬度決定正方形，一路往下排，最後一列吃剩下的高成為直的長方形。
+   id＝t列_欄，以後講位置用「欄、列」，換裝置不必重排。 */
+const tileDefault = () => canvasDef.h>canvasDef.w ? 2 : 9;
+function tiles(W,H,c){
+  const out=[], add=(id,x,y,w,h)=>out.push(`rect id=${id} x=${x} y=${y} w=${w} h=${h} fill=#2B3038 r=8`);
+  let info;
+  if (H>W){
+    const g=8; let m=8; while((W-2*m-(c-1)*g)%c && m<8+c) m++;
+    const t=Math.floor((W-2*m-(c-1)*g)/c), k=Math.max(0,Math.floor((H-2*m-t)/(t+g))), last=H-2*m-k*(t+g);
+    for (let j=0;j<=k;j++) for (let i=0;i<c;i++) add(`t${j+1}_${i+1}`, m+i*(t+g), m+j*(t+g), t, j<k?t:last);
+    info=`${c}×${k+1}，磚 ${t}，最後一列 ${t}×${last}，間距 ${g}，外距 ${m}`;
+  } else {
+    const m=24, t=Math.floor((W-2*m)/(c+(c-1)/10)), gx=c>1?Math.floor((W-2*m-c*t)/(c-1)):0, mx=Math.floor((W-c*t-(c-1)*gx)/2);
+    let r=Math.max(1,Math.round((H-2*m+gx)/(t+gx))); while (r>1 && r*t+(r-1)*4>H-2*m) r--;
+    const gy=r>1?Math.floor((H-2*m-r*t)/(r-1)):0, my=Math.floor((H-r*t-(r-1)*gy)/2);
+    for (let j=0;j<r;j++) for (let i=0;i<c;i++) add(`t${j+1}_${i+1}`, mx+i*(t+gx), my+j*(t+gy), t, t);
+    info=`${c}×${r}，磚 ${t}，欄距 ${gx}・列距 ${gy}，外距 ${mx}・${my}`;
+  }
+  return {text:[`// 磁磚 ${info}`, `#canvas w=${W} h=${H} bg=${canvasDef.bg} grid=${canvasDef.grid}`, ...out].join('\n'), info};
+}
+function applyTiles(){
+  const c=Math.max(1,Math.min(40,parseInt(P('tilec').value)||tileDefault())); P('tilec').value=c;
+  const {text,info}=tiles(canvasDef.w,canvasDef.h,c); P('spec').value=text; P('btnApply').click(); P('msg').textContent='磁磚 '+info;
+}
+P('bTiles').onclick=applyTiles;
+P('tilec').addEventListener('change',()=>{ if(/^\/\/ 磁磚/.test(P('spec').value)) applyTiles(); });   // 已在磁磚模式才即時重排，不會誤洗掉別的版面
 // 各裝置的預設版面：2K 用「2K 標準」（Roy：「這是 2K 預設版面！」），其餘用格式 I
 const defaultSpec = (w,h) => (w===2560 && h===1440) ? std2k() : formatI(w,h);
 /* 換裝置直接照新尺寸生格式 I（2026-09-23 Roy：「這個變成手機版預設格式，推廣到所有版面」）——

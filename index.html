@@ -362,11 +362,22 @@ function drawShape(s){
 }
 function drawPresetFrames(){   // 每個裝置一個置中虛線框＋標籤；跟目前畫布同尺寸的那個就是畫布本身，不畫
   const cx=canvasDef.w/2, cy=canvasDef.h/2;
-  ctx.save(); ctx.lineWidth=1/S; ctx.setLineDash([6/S,5/S]); ctx.font=`600 ${11/S}px system-ui,sans-serif`; ctx.textBaseline='bottom';
+  /* 2026-09-24 Roy 定的配色與擺法：螢幕綠、平板金、手機桃紅；同類不同尺寸照象限順序分到四角
+     （第一象限右上→第二左上→第三左下→第四右下），標籤寫在框外。位置固定，看久了光看角落就知道是哪台。 */
+  const KIND = n => n.startsWith('手機') ? 'phone' : n.startsWith('平板') ? 'tablet' : 'screen';
+  const COLOR = {screen:'143,191,115', tablet:'242,181,68', phone:'224,50,111'};
+  const QUAD = [[1,-1],[-1,-1],[-1,1],[1,1]];   // [x 向右為 1, y 向下為 1]：右上、左上、左下、右下
+  const seen = {};
+  ctx.save(); ctx.lineWidth=1/S; ctx.setLineDash([6/S,5/S]); ctx.font=`600 ${11/S}px system-ui,sans-serif`;
   for (const [name,w,h] of PRESETS){
-    if (!w || (w===canvasDef.w && h===canvasDef.h)) continue;
-    ctx.strokeStyle='rgba(255,194,75,.5)'; ctx.strokeRect(cx-w/2, cy-h/2, w, h);
-    ctx.fillStyle='rgba(255,194,75,.8)'; ctx.fillText(`${name} ${w}×${h}`, cx-w/2+4/S, cy-h/2-3/S);
+    if (!w) continue;
+    const k=KIND(name), q=QUAD[(seen[k]=(seen[k]??-1)+1)%4];   // 目前畫布那台也佔一個象限，標籤位置才不會跟著畫布跳
+    if (w===canvasDef.w && h===canvasDef.h) continue;
+    const x0=cx-w/2, y0=cy-h/2;
+    ctx.strokeStyle=`rgba(${COLOR[k]},.6)`; ctx.strokeRect(x0, y0, w, h);
+    ctx.fillStyle=`rgba(${COLOR[k]},.95)`;
+    ctx.textAlign = q[0]>0 ? 'right' : 'left';   ctx.textBaseline = q[1]<0 ? 'bottom' : 'top';
+    ctx.fillText(`${name} ${w}×${h}`, q[0]>0 ? x0+w-4/S : x0+4/S, q[1]<0 ? y0-3/S : y0+h+3/S);
   }
   ctx.restore();
 }

@@ -99,6 +99,7 @@
     <dl>
       <dt>方向鍵</dt><dd>移 1px，Shift 一格</dd>
       <dt>[ ]</dt><dd>寬 −＋，Shift 調高</dd>
+      <dt>Shift＋拉角</dt><dd>保持比例縮放</dd>
       <dt>D ／ Alt＋拖曳</dt><dd>複製</dd>
       <dt>Ctrl＋C X V</dt><dd>複製剪下貼上（規格文字）</dd>
       <dt>Ctrl＋V 圖片</dt><dd>貼成參考圖，可調不透明與圖層</dd>
@@ -786,6 +787,13 @@ cv.addEventListener('pointermove', e=>{
     if (h.i===2) x1=Math.max(Math.round(p.x/g)*g,x0+g);
     if (h.j===0) y0=Math.min(Math.round(p.y/g)*g,y1-g);
     if (h.j===2) y1=Math.max(Math.round(p.y/g)*g,y0+g);
+    // Shift＋拉角＝保持比例（Figma 習慣；2026-09-25 Roy）：以拉得比較多的那一邊為準，對角固定不動
+    if (e.shiftKey && h.i!==1 && h.j!==1 && o.w>0 && o.h>0){
+      const ratio=o.w/o.h; let w=x1-x0, hh=y1-y0;
+      if (w/hh>ratio) hh=w/ratio; else w=hh*ratio;
+      if (h.i===0) x0=x1-w; else x1=x0+w;
+      if (h.j===0) y0=y1-hh; else y1=y0+hh;
+    }
     s.x=x0;s.y=y0;s.w=x1-x0;s.h=y1-y0;
   }
   syncInsp(); dirty=true;

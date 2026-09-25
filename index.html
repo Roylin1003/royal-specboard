@@ -114,7 +114,7 @@
 
   <div class="bar">
     <select class="b" id="preset"></select>
-    <select class="b" id="tpl" title="照目前畫布尺寸生成版型（會取代畫面上的物件，可 Ctrl+Z）"><option value="">版型…</option><option value="I">格式 I：兩框 × 2×2</option><option value="std2k">2K 標準：9×5 環狀棋盤</option><option value="sample">簡報範例：Hero＋卡片</option></select>
+    <select class="b" id="tpl" title="照目前畫布尺寸生成版型（會取代畫面上的物件，可 Ctrl+Z）"><option value="">版型…</option><option value="I">格式 I：兩框 × 2×2</option><option value="phstd">手機標準：2×4 磁磚（上黃中綠下藍）</option><option value="std2k">2K 標準：9×5 環狀棋盤</option><option value="sample">簡報範例：Hero＋卡片</option></select>
     <div class="fld" style="width:92px" title="磁磚欄數：改了會即時重排（在磁磚模式時）"><i data-scrub="tilec" data-step="1">欄</i><input id="tilec" placeholder="自動"></div>
     <button class="b" id="bTiles" title="照目前裝置排磁磚矩陣（定位點），會取代畫面上的物件（可 Ctrl+Z）。橫式：間距約磚的 1/10；直式：寬決定正方形，最後一列吃剩下的高">🔲 排磁磚</button>
     <div class="fld" style="width:104px"><i data-scrub="cw" data-step="10">寬</i><input id="cw"></div>
@@ -1183,6 +1183,7 @@ function formatI(W,H,u=8){
 P('tpl').onchange=()=>{ const t=P('tpl').value; P('tpl').value='';
   if(t==='I'){ P('spec').value=formatI(canvasDef.w,canvasDef.h); P('btnApply').click(); }
   else if(t==='std2k'){ P('spec').value=std2k(); P('btnApply').click(); }
+  else if(t==='phstd'){ P('spec').value=phoneStd(canvasDef.h>canvasDef.w?canvasDef.w:390, canvasDef.h>canvasDef.w?canvasDef.h:844); P('btnApply').click(); }
   else if(t==='sample'){ P('spec').value=SAMPLE; P('btnApply').click(); } };
 /* 2K 標準（2026-09-23 Roy 在格式 I 上手排出來：「2K 標準！」）：9 欄 × 5 列、每格 256，外距 24、欄距 26、列距 28，
    剛好填滿 2560×1440。外圈是一條環（角白、上粉、下綠、左右黃），內部 7×3 藍。底下保留格式 I 的兩框。 */
@@ -1230,7 +1231,16 @@ P('bHelp').onclick=()=>P('help').showModal();
 P('help').addEventListener('click',e=>{ if(e.target===P('help')) P('help').close(); });   // 點對話框外（backdrop）就關
 P('tilec').addEventListener('change',()=>{ if(/^\/\/ 磁磚/.test(P('spec').value)) applyTiles(); });   // 已在磁磚模式才即時重排，不會誤洗掉別的版面
 // 各裝置的預設版面：2K 用「2K 標準」（Roy：「這是 2K 預設版面！」），其餘用格式 I
-const defaultSpec = (w,h) => (w===2560 && h===1440) ? std2k() : formatI(w,h);
+/* 手機標準（2026-09-25 Roy 手排出來：「這可以當手機類模式的預設面板嗎？」）：直式 2 欄磁磚，寬定正方形、最後一列吃剩下的高；
+   上色＝手機的天地：最上一排黃（拇指搆不到，放次要）、中間綠（一般內容）、最後那排直長方形藍（拇指區，主要操作）。 */
+function phoneStd(W,H){
+  const {text,info}=tiles(W,H,2), rows=text.split('\n');
+  const last=Math.max(...rows.map(l=>+(/ id=t(\d+)_/.exec(l)||[0,0])[1]));
+  return rows.map(l=>{ const m=/ id=t(\d+)_/.exec(l); if(l.startsWith('//')) return `// 手機標準 ${W}x${H}：${info}（上排黃＝次要、中間綠＝一般、最後一排藍＝拇指區主操作）`;
+    if(!m) return l; const r=+m[1]; return l.replace(/fill=\S+/, 'fill='+(r===1?'#F2B544':r===last?'#4CC3D9':'#8FBF73')); }).join('\n');
+}
+const isPhonePortrait = (w,h) => h>w && w<=430;
+const defaultSpec = (w,h) => (w===2560 && h===1440) ? std2k() : isPhonePortrait(w,h) ? phoneStd(w,h) : formatI(w,h);
 /* 換裝置直接照新尺寸生格式 I（2026-09-23 Roy：「這個變成手機版預設格式，推廣到所有版面」）——
    換裝置不再只是搬畫布尺寸、留著舊物件飄在框外，先前那個問題才會冒出「畫布外物件半透明」的暫時解法。 */
 P('preset').onchange=()=>{ const p=PRESETS[+P('preset').value]; if(p[1]){ canvasDef.w=p[1]; canvasDef.h=p[2]; syncCanvas(); layout(); P('spec').value=defaultSpec(canvasDef.w,canvasDef.h); P('btnApply').click(); } };
@@ -1274,7 +1284,7 @@ for (const c of SWATCH){
 addEventListener('resize', layout);
 let saved=null; try{ saved=localStorage.getItem('specboard.spec'); }catch{}
 // 預設看開的人用什麼螢幕：窄螢幕＝手機格式 I，寬螢幕＝2K 標準（2026-09-23 Roy 用手機開，看到的卻是縮小的 2K）
-const boot = saved || (innerWidth < 768 ? formatI(390,844) : std2k());
+const boot = saved || (innerWidth < 768 ? phoneStd(390,844) : std2k());   // 手機開＝手機標準（2026-09-25）
 P('spec').value=boot; P('btnApply').click(); markSaved(); tick();
 if(saved) P('msg').textContent='已還原上次的版面（自動存檔）。「回到預設」可清掉。';
 })();

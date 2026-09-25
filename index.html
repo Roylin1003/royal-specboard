@@ -114,7 +114,7 @@
 
   <div class="bar">
     <select class="b" id="preset"></select>
-    <select class="b" id="tpl" title="照目前畫布尺寸生成版型（會取代畫面上的物件，可 Ctrl+Z）"><option value="">版型…</option><option value="I">格式 I：兩框 × 2×2</option><option value="phstd">手機標準：2×4 磁磚（上黃中綠下藍）</option><option value="std2k">2K 標準：9×5 環狀棋盤</option><option value="sample">簡報範例：Hero＋卡片</option></select>
+    <select class="b" id="tpl" title="照目前畫布尺寸生成版型（會取代畫面上的物件，可 Ctrl+Z）"><option value="">版型…</option><option value="I">格式 I：兩框 × 2×2</option><option value="phstd">手機標準：2×4 磁磚（黃＝離開區、藍＝拇指區）</option><option value="std2k">2K 標準：9×5 環狀棋盤</option><option value="sample">簡報範例：Hero＋卡片</option></select>
     <div class="fld" style="width:92px" title="磁磚欄數：改了會即時重排（在磁磚模式時）"><i data-scrub="tilec" data-step="1">欄</i><input id="tilec" placeholder="自動"></div>
     <button class="b" id="bTiles" title="照目前裝置排磁磚矩陣（定位點），會取代畫面上的物件（可 Ctrl+Z）。橫式：間距約磚的 1/10；直式：寬決定正方形，最後一列吃剩下的高">🔲 排磁磚</button>
     <div class="fld" style="width:104px"><i data-scrub="cw" data-step="10">寬</i><input id="cw"></div>
@@ -1232,11 +1232,12 @@ P('help').addEventListener('click',e=>{ if(e.target===P('help')) P('help').close
 P('tilec').addEventListener('change',()=>{ if(/^\/\/ 磁磚/.test(P('spec').value)) applyTiles(); });   // 已在磁磚模式才即時重排，不會誤洗掉別的版面
 // 各裝置的預設版面：2K 用「2K 標準」（Roy：「這是 2K 預設版面！」），其餘用格式 I
 /* 手機標準（2026-09-25 Roy 手排出來：「這可以當手機類模式的預設面板嗎？」）：直式 2 欄磁磚，寬定正方形、最後一列吃剩下的高；
-   上色＝手機的天地：最上一排黃（拇指搆不到，放次要）、中間綠（一般內容）、最後那排直長方形藍（拇指區，主要操作）。 */
+   上色＝手機的天地：最上一排黃＝離開區（Roy：「這裡觸控？是不是使用者要去別地方了？」——網頁習慣，游標移到頂端就是要去網址列）、
+   中間綠＝一般內容、最後那排直長方形藍＝拇指區主操作。 */
 function phoneStd(W,H){
   const {text,info}=tiles(W,H,2), rows=text.split('\n');
   const last=Math.max(...rows.map(l=>+(/ id=t(\d+)_/.exec(l)||[0,0])[1]));
-  return rows.map(l=>{ const m=/ id=t(\d+)_/.exec(l); if(l.startsWith('//')) return `// 手機標準 ${W}x${H}：${info}（上排黃＝次要、中間綠＝一般、最後一排藍＝拇指區主操作）`;
+  return rows.map(l=>{ const m=/ id=t(\d+)_/.exec(l); if(l.startsWith('//')) return `// 手機標準 ${W}x${H}：${info}（上排黃＝離開區、中間綠＝一般、最後一排藍＝拇指區主操作）`;
     if(!m) return l; const r=+m[1]; return l.replace(/fill=\S+/, 'fill='+(r===1?'#F2B544':r===last?'#4CC3D9':'#8FBF73')); }).join('\n');
 }
 const isPhonePortrait = (w,h) => h>w && w<=430;

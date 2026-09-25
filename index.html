@@ -101,6 +101,7 @@
       <dt>[ ]</dt><dd>寬 −＋，Shift 調高</dd>
       <dt>D ／ Alt＋拖曳</dt><dd>複製</dd>
       <dt>Ctrl＋C X V</dt><dd>複製剪下貼上（規格文字）</dd>
+      <dt>Ctrl＋V 圖片</dt><dd>貼成參考圖，可調不透明與圖層</dd>
       <dt>Ctrl＋] [</dt><dd>圖層上下</dd>
       <dt>Alt＋A D W S</dt><dd>靠左右上下</dd>
       <dt>I</dt><dd>滴管</dd>
@@ -329,8 +330,24 @@ function wrap(text,maxW){
   }
   return out;
 }
+/* 貼上的圖片（2026-09-25 Roy：「讓我貼剪貼簿內的圖像，可以調透明度和圖層高度」）：
+   規格文字只記 img=鍵，像素存在這台瀏覽器（localStorage），不塞進文字——一張截圖就是幾十萬字。 */
+const IMGS=new Map();
+function imgOf(key){
+  if (!key) return null;
+  if (!IMGS.has(key)){ let src=null; try{ src=localStorage.getItem('specboard.img.'+key); }catch{}
+    const im=src?new Image():null; if(im){ im.onload=()=>{ dirty=true; }; im.src=src; } IMGS.set(key,im); }
+  return IMGS.get(key);
+}
 function drawShape(s){
   ctx.save(); ctx.globalAlpha*=(s.op??100)/100;
+  if (s.type==='image'){
+    const im=imgOf(s.img);
+    if (im && im.complete && im.naturalWidth) ctx.drawImage(im,s.x,s.y,s.w,s.h);
+    else { ctx.setLineDash([6,4]); ctx.strokeStyle='#9aa2ad'; ctx.lineWidth=1.5; ctx.strokeRect(s.x,s.y,s.w,s.h); ctx.setLineDash([]);
+      ctx.fillStyle='#9aa2ad'; ctx.font='14px system-ui,sans-serif'; ctx.textBaseline='top'; ctx.fillText('圖片不在這台瀏覽器',s.x+6,s.y+6); }
+    ctx.restore(); return;
+  }
   if (s.fill && s.fill!=='none'){
     ctx.fillStyle=s.fill;
     if (s.type==='ellipse'){ ctx.beginPath(); ctx.ellipse(s.x+s.w/2,s.y+s.h/2,s.w/2,s.h/2,0,0,Math.PI*2); ctx.fill(); }
@@ -641,6 +658,7 @@ function serialize(){
     if (s.stroke && s.stroke!=='none') t+=` stroke=${s.stroke}`;
     if ((s.op??100)!==100) t+=` op=${Math.round(s.op)}`;
     if (s.body) t+=` body="${esc(s.body)}" size=${s.size||32} color=${s.color||'#F2F4F7'} align=${s.align||'left'} valign=${s.valign||'middle'}`;
+    if (s.type==='image') t+=` img=${s.img}`;
     L.push(t);
   }
   return (comments.length?comments.join('\n')+'\n':'')+L.join('\n');
@@ -666,7 +684,7 @@ function parse(text){
       continue;
     }
     const type=ln.split(/\s+/)[0];
-    if (type!=='rect'&&type!=='ellipse') continue;
+    if (type!=='rect'&&type!=='ellipse'&&type!=='image') continue;
     let id=(kv.id||'').replace(/\s+/g,'_')||('s'+(counter++));
     { const base=id; let n=2; while(seen.has(id)) id=base+(n++); seen.add(id); }   // 重複 id 自動去重（之後 link 行要靠 id）
     const num=(k,fb)=>{ const v=clampVal(k,+kv[k]); return v===null?fb:v; };
@@ -674,7 +692,8 @@ function parse(text){
       x:num('x',0),y:num('y',0),w:num('w',100),h:num('h',100),
       fill:okColor(kv.fill)?kv.fill:'none',stroke:okColor(kv.stroke)?kv.stroke:'',r:num('r',0),op:kv.op!==undefined?num('op',100):100,
       body:kv.body||'',size:num('size',32),color:okColor(kv.color)&&kv.color!=='none'?kv.color:'#F2F4F7',
-      align:['left','center','right'].includes(kv.align)?kv.align:'left',valign:['top','middle','bottom'].includes(kv.valign)?kv.valign:'middle'});
+      align:['left','center','right'].includes(kv.align)?kv.align:'left',valign:['top','middle','bottom'].includes(kv.valign)?kv.valign:'middle',
+      ...(type==='image'?{img:(kv.img||'').replace(/[^\w-]/g,'')}:{})});
   }
   return {cd,ns,nc};
 }
@@ -799,7 +818,6 @@ addEventListener('keydown', e=>{
   if (e.key==='f'||e.key==='F'){ document.body.classList.toggle('present'); setTimeout(layout,0); return; }   // 簡報模式
   if (e.shiftKey && e.code==='Digit1'){ fitView(); return; }                                              // Figma：Shift+1 整張
   if (e.shiftKey && e.code==='Digit2'){ zoomToSel(); return; }                                            // Figma：Shift+2 縮放到選取
-  if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='v'){ e.preventDefault(); pasteShapes(); return; }
   if (!selection.length) return;
   if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='c'){ e.preventDefault(); copyShapes(false); return; }
   if ((e.metaKey||e.ctrlKey) && e.key.toLowerCase()==='x'){ e.preventDefault(); copyShapes(true); return; }
@@ -836,8 +854,33 @@ async function copyShapes(cut){
   try{ await navigator.clipboard.writeText(txt); P('msg').textContent=`已複製 ${ids.size} 個物件（規格文字）。`; }catch{ P('msg').textContent='剪貼簿被瀏覽器擋下。'; return; }
   if (cut) del();
 }
-async function pasteShapes(){
-  let txt=''; try{ txt=await navigator.clipboard.readText(); }catch{ P('msg').textContent='剪貼簿被瀏覽器擋下。'; return; }
+/* Ctrl+V 走瀏覽器的 paste 事件（不用 clipboard.readText，不必要求權限，也拿得到圖片）：
+   剪貼簿有圖片→貼成圖片物件；有文字→當規格貼上。輸入框裡的貼上不攔。 */
+addEventListener('paste', e=>{
+  if (/INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+  const item=[...(e.clipboardData?.items||[])].find(i=>i.type.startsWith('image/'));
+  if (item){ e.preventDefault(); pasteImage(item.getAsFile()); return; }
+  const txt=e.clipboardData?.getData('text')||''; if (txt){ e.preventDefault(); pasteShapes(txt); }
+});
+function pasteImage(file){
+  const rd=new FileReader();
+  rd.onload=()=>{ const src=rd.result, im=new Image();
+    im.onload=()=>{
+      const key='clip'+Date.now().toString(36);
+      let saved=true; try{ localStorage.setItem('specboard.img.'+key, src); }catch{ saved=false; }
+      IMGS.set(key, im);
+      const k=Math.min(1, canvasDef.w*0.6/im.naturalWidth, canvasDef.h*0.6/im.naturalHeight);
+      const w=Math.round(im.naturalWidth*k), h=Math.round(im.naturalHeight*k);
+      const s={type:'image',id:'img'+(counter++),x:Math.round((canvasDef.w-w)/2),y:Math.round((canvasDef.h-h)/2),w,h,
+        fill:'none',stroke:'',r:0,op:50,body:'',size:32,color:'#F2F4F7',align:'left',valign:'middle',img:key};
+      shapes.push(s); selection=[s]; syncInsp(); pushSpec(); dirty=true;
+      P('msg').textContent = saved ? `已貼上圖片 ${im.naturalWidth}×${im.naturalHeight}（不透明 50，右欄可調；圖層上下移可調高低）。`
+                                   : '已貼上圖片，但太大存不進瀏覽器——重新整理後會消失。';
+    };
+    im.src=src; };
+  rd.readAsDataURL(file);
+}
+async function pasteShapes(txt){
   const {ns}=parse(txt); if(!ns.length){ P('msg').textContent='剪貼簿裡沒有物件規格。'; return; }
   const g=canvasDef.grid||1, have=new Set(shapes.map(s=>s.id));
   for (const s of ns){ if(have.has(s.id)) s.id=s.id.replace(/\d*$/,'')+(counter++); s.x+=g*4; s.y+=g*4; }

@@ -36,7 +36,7 @@ TourBox 的原理：每個旋鈕、按鍵都送出**鍵盤快捷鍵**（或滾�
 | 方向鍵 ／ Shift＋方向鍵 | 移 1px ／ 移一格 | — |
 | `[` `]` ／ Shift＋`[` `]` | 寬 −＋一格 ／ 高 −＋一格 | Photoshop 筆刷大小 |
 | `D` ／ Alt＋拖曳 | 複製一份 ／ 拖出一份 | Figma、PowerPoint（Ctrl＋拖曳） |
-| Shift＋拉角 | 保持比例縮放 | Figma、Photoshop |
+| Shift＋拉角 | 保持比例縮放（圖片相反：預設鎖比例，Shift 才自由） | Figma；圖片照新版 Photoshop |
 | Ctrl＋C ／ X ／ V | 複製／剪下／貼上（剪貼簿裡是規格文字，可跨分頁、可貼給 AI） | 全部 |
 | Ctrl＋] ／ Ctrl＋[ | 圖層上移／下移 | Figma、PowerPoint |
 | Alt＋A D W S | 靠左／右／上／下 | Figma |

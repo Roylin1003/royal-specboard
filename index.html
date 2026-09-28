@@ -163,7 +163,7 @@
         <input type="color" id="pfillc" disabled>
         <div class="fld" style="flex:1"><i>hex</i><input id="pfill" disabled></div>
       </div>
-      <div class="rowb" style="margin-top:7px" id="swFill"></div>
+      <div style="margin-top:7px;display:grid;grid-template-columns:repeat(9,22px);gap:5px" id="swFill"></div>
     </div>
     <div class="sec">
       <div class="lbl">文字</div>
@@ -238,7 +238,11 @@ const PRESETS = [
   ['平板直式',834,1194],['平板橫式',1194,834],   // 2026-09-24 Roy：「平板確實需要橫式。手機也要橫式。」
   ['手機',390,844],['手機橫式',844,390],['手機大',430,932],['手機大橫式',932,430],['自訂',0,0],
 ];
-const SWATCH = ['#0E1116','#1A2029','#232B36','#3B7A8C','#4CC3D9','#E0326F','#F2B544','#8FBF73','#F2F4F7','#FFFFFF'];
+/* 色盤兩排：上排灰階（深→淺，每階明度差夠大，肉眼分得出）；下排色相（金綠青桃＝磁磚色，吸管吸得回同一格） */
+const SWATCH = [
+  ['#0E1116','底'],['#232B36','深灰'],['#3D4757','暗灰'],['#6B7685','中灰'],['#9AA3AF','灰'],['#C8CDD4','淺灰'],['#E6E9ED','霧白'],['#FFFFFF','白'],['#000000','黑'],
+  ['#E5484D','紅'],['#F08C3C','橘'],['#F2B544','金'],['#8FBF73','綠'],['#4CC3D9','青'],['#3B82F6','藍'],['#8E6CD9','紫'],['#E0326F','桃'],['#EB9AB6','櫻'],
+];
 
 const DEFAULTS = {
   容器:  {type:'rect', w:720, h:480, fill:'#1A2029', r:16},
@@ -1311,8 +1315,8 @@ for (const name of Object.keys(DEFAULTS)){
   const b=document.createElement('button'); b.className='b sm'; b.textContent=({容器:'📦 ',按鈕:'🔘 ',標題:'🔠 ',內文:'📝 ',導覽列:'🧭 ',圖片框:'🖼️ ',圓形:'⚪ ',分隔線:'➖ '}[name]||'')+name; b.onclick=()=>add(name); pal.appendChild(b);
 }
 const sw=P('swFill');
-for (const c of SWATCH){
-  const b=document.createElement('button'); b.className='sw'; b.style.background=c; b.title=c;
+for (const [c,name] of SWATCH){
+  const b=document.createElement('button'); b.className='sw'; b.style.background=c; b.title=name+' '+c;
   b.onclick=()=>{ if(selection.length) applyAll('fill',c); }; sw.appendChild(b);
 }
 

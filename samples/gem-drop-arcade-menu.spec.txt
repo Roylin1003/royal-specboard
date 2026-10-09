@@ -1,0 +1,74 @@
+// 實況擷取：https://gem-drop-arcade.roylin1003.workers.dev/（2026-09-15）
+#canvas w=2560 h=1440 bg=#0E1116 grid=8
+rect id=marquee x=824 y=99 w=912 h=88 fill=none body="GEM DROP ARCADE" size=96 color=#F0B93A align=left valign=middle
+rect id=h2 x=677 y=232 w=298 h=45 fill=none body="選單" size=61 color=#F0B93A align=left valign=middle
+rect id=langToggle x=677 y=279 w=97 h=48 fill=none body="EN" size=42 color=#F0B93A align=center valign=middle
+rect id=muteToggle x=778 y=279 w=97 h=48 fill=none body="🔊" size=42 color=#F0B93A align=center valign=middle
+rect id=skinToggle x=879 y=279 w=97 h=48 fill=none body="💾" size=42 color=#F0B93A align=center valign=middle
+rect id=h3 x=677 y=338 w=298 h=24 fill=none body="方塊速度" size=33 color=#8A5A1E align=center valign=middle
+rect id=lvBtn x=677 y=367 w=298 h=55 fill=#F0B93A body="LV[1]" size=42 color=#F0B93A align=center valign=middle
+rect id=lvBtn1 x=677 y=425 w=298 h=55 fill=none body="LV[2]" size=42 color=#F0B93A align=center valign=middle
+rect id=lvBtn2 x=677 y=484 w=298 h=55 fill=none body="LV[3]" size=42 color=#F0B93A align=center valign=middle
+rect id=lvBtn3 x=677 y=542 w=298 h=55 fill=none body="LV[4]" size=42 color=#F0B93A align=center valign=middle
+rect id=lvBtn4 x=677 y=601 w=298 h=55 fill=none body="LV[5]" size=42 color=#F0B93A align=center valign=middle
+rect id=lvBtn5 x=677 y=660 w=298 h=55 fill=none body="LV[6]" size=42 color=#F0B93A align=center valign=middle
+rect id=lvBtn6 x=677 y=718 w=298 h=55 fill=none body="LV[7]" size=42 color=#F0B93A align=center valign=middle
+rect id=lvBtn7 x=677 y=777 w=298 h=55 fill=none body="LV[8]" size=42 color=#F0B93A align=center valign=middle
+rect id=lvBtn8 x=677 y=835 w=298 h=55 fill=none body="LV[9]" size=42 color=#F0B93A align=center valign=middle
+rect id=h39 x=677 y=895 w=298 h=24 fill=none body="經典尺寸" size=33 color=#8A5A1E align=center valign=middle
+rect id=lvBtn10 x=677 y=924 w=298 h=44 fill=#F0B93A body="SEGA 6×13" size=27 color=#F0B93A align=center valign=middle
+rect id=lvBtn11 x=677 y=972 w=298 h=44 fill=none body="Tetris 10×20" size=27 color=#F0B93A align=center valign=middle
+rect id=lvBtn12 x=677 y=1020 w=298 h=44 fill=none body="Puyo 6×12" size=27 color=#F0B93A align=center valign=middle
+rect id=lvBtn13 x=677 y=1067 w=298 h=44 fill=none body="Dr.Mario 8×16" size=27 color=#F0B93A align=center valign=middle
+rect id=startBtn x=677 y=1116 w=298 h=85 fill=#F0B93A body="START" size=42 color=#1A1005 align=center valign=middle
+rect id=small x=688 y=1170 w=278 h=22 fill=none op=60 body="[SPACE]" size=30 color=#1A1005 align=center valign=middle
+rect id=score x=1039 y=232 w=167 h=32 fill=#000000 stroke=#FFB000 r=6
+rect id=score_t x=1055 y=232 w=135 h=32 fill=none body="SCORE 0" size=33 color=#FFB000 align=left valign=middle
+rect id=game x=1026 y=222 w=507 h=1099 fill=#0F0904
+rect id=start x=1026 y=222 w=507 h=1099 fill=#020602
+rect id=h1 x=1042 y=532 w=477 h=175 fill=none body="GEM DROP" size=120 color=#F0B93A align=center valign=middle
+rect id=hint x=1128 y=716 w=304 h=47 fill=none body="設定速度[1]至[9]" size=65 color=#F5E6C8 align=center valign=middle
+rect id=kbd x=1161 y=773 w=42 h=41 fill=none body="◀" size=35 color=#F0B93A align=center valign=middle
+rect id=kbd14 x=1206 y=773 w=42 h=41 fill=none body="▶" size=35 color=#F0B93A align=center valign=middle
+rect id=kbd15 x=1251 y=773 w=42 h=41 fill=none body="A" size=35 color=#F0B93A align=center valign=middle
+rect id=kbd16 x=1297 y=773 w=42 h=41 fill=none body="D" size=35 color=#F0B93A align=center valign=middle
+rect id=act x=1348 y=779 w=51 h=30 fill=none body="移動" size=41 color=#8A5A1E align=left valign=middle
+rect id=kbd17 x=1251 y=820 w=42 h=41 fill=none body="▲" size=35 color=#F0B93A align=center valign=middle
+rect id=kbd18 x=1297 y=820 w=42 h=41 fill=none body="W" size=35 color=#F0B93A align=center valign=middle
+rect id=act19 x=1348 y=825 w=51 h=30 fill=none body="旋轉" size=41 color=#8A5A1E align=left valign=middle
+rect id=kbd20 x=1251 y=866 w=42 h=41 fill=none body="▼" size=35 color=#F0B93A align=center valign=middle
+rect id=kbd21 x=1297 y=866 w=42 h=41 fill=none body="S" size=35 color=#F0B93A align=center valign=middle
+rect id=act22 x=1348 y=872 w=51 h=30 fill=none body="快落" size=41 color=#8A5A1E align=left valign=middle
+rect id=wide x=1210 y=912 w=129 h=41 fill=none body="SPACE" size=35 color=#F0B93A align=center valign=middle
+rect id=act23 x=1348 y=918 w=51 h=30 fill=none body="硬降" size=41 color=#8A5A1E align=left valign=middle
+rect id=next x=1684 y=228 w=100 h=32 fill=#000000 stroke=#FFB000 r=6
+rect id=next_t x=1696 y=228 w=76 h=32 fill=none body="NEXT" size=33 color=#FFB000 align=left valign=middle
+rect id=nextCanvas x=1691 y=268 w=84 h=284 fill=#0F0904
+rect id=h224 x=1584 y=625 w=298 h=45 fill=none body="SCORE" size=61 color=#F0B93A align=left valign=middle
+rect id=row x=1584 y=679 w=298 h=57 fill=none stroke=#8A5A1E r=6
+rect id=lbCurrent x=1715 y=686 w=38 h=43 fill=none body="0" size=59 color=#F0B93A align=left valign=middle
+rect id=slot x=1584 y=741 w=298 h=61 fill=none stroke=#8A5A1E op=38 r=6
+rect id=rk x=1594 y=747 w=24 h=28 fill=none body="1" size=38 color=#F5E6C8 align=left valign=middle
+rect id=nm x=1625 y=747 w=72 h=28 fill=none body="---" size=38 color=#F5E6C8 align=left valign=middle
+rect id=sc x=1705 y=747 w=169 h=28 fill=none body="0" size=38 color=#F5E6C8 align=right valign=middle
+rect id=i x=1594 y=776 w=280 h=22 fill=none body="[--]" size=30 color=#8A5A1E align=left valign=middle
+rect id=slot25 x=1584 y=806 w=298 h=61 fill=none stroke=#8A5A1E op=38 r=6
+rect id=rk26 x=1594 y=812 w=24 h=28 fill=none body="2" size=38 color=#F5E6C8 align=left valign=middle
+rect id=nm27 x=1625 y=812 w=72 h=28 fill=none body="---" size=38 color=#F5E6C8 align=left valign=middle
+rect id=sc28 x=1705 y=812 w=169 h=28 fill=none body="0" size=38 color=#F5E6C8 align=right valign=middle
+rect id=i29 x=1594 y=841 w=280 h=22 fill=none body="[--]" size=30 color=#8A5A1E align=left valign=middle
+rect id=slot30 x=1584 y=872 w=298 h=61 fill=none stroke=#8A5A1E op=38 r=6
+rect id=rk31 x=1594 y=877 w=24 h=28 fill=none body="3" size=38 color=#F5E6C8 align=left valign=middle
+rect id=nm32 x=1625 y=877 w=72 h=28 fill=none body="---" size=38 color=#F5E6C8 align=left valign=middle
+rect id=sc33 x=1705 y=877 w=169 h=28 fill=none body="0" size=38 color=#F5E6C8 align=right valign=middle
+rect id=i34 x=1594 y=906 w=280 h=22 fill=none body="[--]" size=30 color=#8A5A1E align=left valign=middle
+rect id=slot35 x=1584 y=937 w=298 h=61 fill=none stroke=#8A5A1E op=38 r=6
+rect id=rk36 x=1594 y=942 w=24 h=28 fill=none body="4" size=38 color=#F5E6C8 align=left valign=middle
+rect id=nm37 x=1625 y=942 w=72 h=28 fill=none body="---" size=38 color=#F5E6C8 align=left valign=middle
+rect id=sc38 x=1705 y=942 w=169 h=28 fill=none body="0" size=38 color=#F5E6C8 align=right valign=middle
+rect id=i39 x=1594 y=971 w=280 h=22 fill=none body="[--]" size=30 color=#8A5A1E align=left valign=middle
+rect id=slot40 x=1584 y=1002 w=298 h=61 fill=none stroke=#8A5A1E op=38 r=6
+rect id=rk41 x=1594 y=1007 w=24 h=28 fill=none body="5" size=38 color=#F5E6C8 align=left valign=middle
+rect id=nm42 x=1625 y=1007 w=72 h=28 fill=none body="---" size=38 color=#F5E6C8 align=left valign=middle
+rect id=sc43 x=1705 y=1007 w=169 h=28 fill=none body="0" size=38 color=#F5E6C8 align=right valign=middle
+rect id=i44 x=1594 y=1036 w=280 h=22 fill=none body="[--]" size=30 color=#8A5A1E align=left valign=middle

@@ -1,0 +1,14 @@
+## Netlify／Cloudflare Pages 快取規則（GitHub Pages 不吃這個檔，放著無害）。
+## max-age=0 + must-revalidate ＝ 每次載入都回伺服器確認版本，測試者永遠拿到最新版。
+
+/
+  Cache-Control: public, max-age=0, must-revalidate
+
+/index.html
+  Cache-Control: public, max-age=0, must-revalidate
+
+/snapshot-capture.js
+  Cache-Control: public, max-age=0, must-revalidate
+
+/samples/*
+  Cache-Control: public, max-age=0, must-revalidate
